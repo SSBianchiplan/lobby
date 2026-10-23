@@ -68,6 +68,11 @@ que imprime a senha aleatória uma única vez.
 trigger no banco recusa recebimentos de balcão nele; Pix e cartão online nunca são barrados (o dinheiro já entrou) e
 aparecem como "movimento após o fechamento". Reabrir exige motivo e fica no histórico do fechamento.
 
+**Limpar dados de exemplo** (*Admin › Configurações*, só o master): mostra a prévia e, com `APAGAR` + senha, apaga numa
+transação as contas do seed (`jogador@padellobby.com.br` e `*@exemplo.com`, papel jogador) e tudo o que é delas —
+reservas, pagamentos, jogadores, eventos, notificações — e os fechamentos de dias com dinheiro de exemplo. Admins,
+configurações, preços, feriados, quadras, bloqueios e dados reais ficam.
+
 ### Conta do usuário
 
 - **Criar conta** (`/cadastro`): senha de 8+ caracteres com medidor de força e confirmação, perfil de jogador opcional

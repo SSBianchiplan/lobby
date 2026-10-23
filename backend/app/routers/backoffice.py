@@ -2,6 +2,7 @@
 
 import csv
 import io
+import logging
 import secrets
 from datetime import date, time, timedelta
 from typing import Literal
@@ -13,10 +14,11 @@ from pydantic import BaseModel, Field
 from .. import reservations as svc
 from ..config import get_settings
 from ..deps import Admin, Conn, Master
-from ..security import hash_password
+from ..security import hash_password, verify_password
 from ..domain import WEEKDAY_SHORT, _m, day_infos, load_settings, local_dt, now_local
 
 router = APIRouter(prefix="/api/admin", tags=["retaguarda"])
+log = logging.getLogger("padel.backoffice")
 
 PLAYED = ("confirmed", "checked_in", "completed")
 CHANNELS = ("pix_online", "cartao_online", "dinheiro", "pix_balcao", "debito", "credito")
@@ -479,3 +481,74 @@ async def reset_password(user_id: int, admin: Admin, conn: Conn):
         user_id, hash_password(temp),
     )
     return {"temporary_password": temp}
+
+
+# ── Manutenção: limpar os dados de exemplo do seed (só o admin master) ─────
+
+# Contas criadas por `seed.py` (demo): o jogador demo e os jogadores fictícios @exemplo.com.
+DEMO_USERS = "(lower(email::text) = 'jogador@padellobby.com.br' OR lower(email::text) LIKE '%@exemplo.com') AND role = 'player'"
+
+
+async def _demo_preview(conn: asyncpg.Connection) -> dict:
+    row = await conn.fetchrow(
+        f"""
+        WITH du AS (SELECT id FROM users WHERE {DEMO_USERS}),
+             dr AS (SELECT id FROM reservations WHERE user_id IN (SELECT id FROM du)),
+             dp AS (SELECT * FROM payments WHERE reservation_id IN (SELECT id FROM dr))
+        SELECT (SELECT count(*) FROM du) AS users,
+               (SELECT count(*) FROM dr) AS reservations,
+               (SELECT count(*) FROM dp) AS payments,
+               (SELECT coalesce(sum(amount_cents) FILTER (WHERE status IN ('paid', 'refunded')), 0) FROM dp) AS payments_cents,
+               (SELECT count(*) FROM reservation_players WHERE reservation_id IN (SELECT id FROM dr)) AS players,
+               (SELECT count(*) FROM reservation_players WHERE user_id IN (SELECT id FROM du) AND reservation_id NOT IN (SELECT id FROM dr)) AS invited_elsewhere,
+               (SELECT count(*) FROM notifications WHERE user_id IN (SELECT id FROM du)) AS notifications,
+               (SELECT count(*) FROM daily_closings WHERE day IN (
+                    SELECT paid_at::date FROM dp WHERE paid_at IS NOT NULL
+                    UNION SELECT refunded_at::date FROM dp WHERE refunded_at IS NOT NULL)) AS closings,
+               (SELECT count(*) FROM reservations WHERE user_id NOT IN (SELECT id FROM du)) AS kept_reservations,
+               (SELECT count(*) FROM users WHERE id NOT IN (SELECT id FROM du) AND deleted_at IS NULL) AS kept_users
+        """
+    )
+    sample = await conn.fetch(f"SELECT name, email::text AS email FROM users WHERE {DEMO_USERS} ORDER BY id LIMIT 10")
+    return {**dict(row), "sample": [dict(r) for r in sample]}
+
+
+@router.get("/maintenance/demo-data")
+async def demo_data(_: Master, conn: Conn):
+    """Prévia do que a limpeza apagaria — nada é alterado."""
+    return await _demo_preview(conn)
+
+
+class PurgeIn(BaseModel):
+    confirm: str
+    password: str = Field(max_length=128)
+
+
+@router.post("/maintenance/purge-demo")
+async def purge_demo(body: PurgeIn, master: Master, conn: Conn):
+    """Apaga as contas de exemplo e tudo o que é delas, numa transação. Admins, configurações, preços,
+    feriados, bloqueios e dados reais ficam. Fechamentos de dias com dinheiro de exemplo também saem
+    (os totais deles deixariam de bater)."""
+    if body.confirm.strip().upper() != "APAGAR":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, 'Digite APAGAR para confirmar.')
+    if not verify_password(body.password, await conn.fetchval("SELECT password_hash FROM users WHERE id = $1", master["id"])):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Senha incorreta.")
+    async with conn.transaction():
+        before = await _demo_preview(conn)
+        await conn.execute(
+            f"""DELETE FROM daily_closings WHERE day IN (
+                    SELECT p.paid_at::date FROM payments p JOIN reservations r ON r.id = p.reservation_id
+                    WHERE p.paid_at IS NOT NULL AND r.user_id IN (SELECT id FROM users WHERE {DEMO_USERS})
+                    UNION
+                    SELECT p.refunded_at::date FROM payments p JOIN reservations r ON r.id = p.reservation_id
+                    WHERE p.refunded_at IS NOT NULL AND r.user_id IN (SELECT id FROM users WHERE {DEMO_USERS}))"""
+        )
+        # jogador de exemplo convidado numa reserva real: o nome fica, o vínculo com a conta sai
+        await conn.execute(f"UPDATE reservation_players SET user_id = NULL WHERE user_id IN (SELECT id FROM users WHERE {DEMO_USERS})")
+        # payments, reservation_players e reservation_events saem em cascata com a reserva
+        await conn.execute(f"DELETE FROM reservations WHERE user_id IN (SELECT id FROM users WHERE {DEMO_USERS})")
+        await conn.execute(f"DELETE FROM users WHERE {DEMO_USERS}")  # notifications em cascata
+    log.warning("dados de exemplo apagados por %s: %s", master["email"],
+                {k: v for k, v in before.items() if k != "sample"})
+    return {"deleted": {k: before[k] for k in ("users", "reservations", "payments", "players", "notifications", "closings")},
+            "remaining": await _demo_preview(conn)}
