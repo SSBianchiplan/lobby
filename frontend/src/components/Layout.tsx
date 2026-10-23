@@ -64,6 +64,7 @@ export function SiteHeader({ cta }: { cta?: ReactNode }) {
         <nav aria-label="Principal" className="site-nav">
           <NavLink to="/agenda" aria-current={pathname.startsWith("/agenda") ? "page" : undefined}>Agenda</NavLink>
           {user && <NavLink to="/reservas">Minhas reservas</NavLink>}
+          {user?.is_coach && <NavLink to="/professor">Área do professor</NavLink>}
           {user?.role === "admin" ? <NavLink to="/admin">Administração</NavLink> : (
             <>
               <a href={onHome ? "#estrutura" : "/#estrutura"}>Estrutura</a>

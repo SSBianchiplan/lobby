@@ -73,8 +73,12 @@ def _user_out(u) -> dict:
     }
 
 
-def _session(u) -> dict:
-    return {"token": create_token(u["id"], u["role"], u["token_version"]), "user": _user_out(u)}
+def _session(u, is_coach: bool = False) -> dict:
+    return {"token": create_token(u["id"], u["role"], u["token_version"]), "user": {**_user_out(u), "is_coach": is_coach}}
+
+
+async def _is_coach(conn: asyncpg.Connection, user_id: int) -> bool:
+    return bool(await conn.fetchval("SELECT 1 FROM coaches WHERE user_id = $1 AND active", user_id))
 
 
 # ── Freio a força bruta: 5 erros por e-mail em 5 min (1 worker, memória do processo basta) ──
@@ -119,7 +123,7 @@ async def login(body: LoginIn, conn: Conn):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "E-mail ou senha incorretos.")
     _FAILS.pop(key, None)
     await conn.execute("UPDATE users SET last_login_at = now() WHERE id = $1", u["id"])
-    return _session(u)
+    return _session(u, await _is_coach(conn, u["id"]))
 
 
 @router.get("/me")
@@ -154,7 +158,8 @@ async def me(user: User, conn: Conn):
         """,
         user["id"],
     )
-    return {**_user_out(u), "stats": {**dict(stats), "favorite_court": favorite}, "partners": [dict(p) for p in partners]}
+    return {**_user_out(u), "is_coach": await _is_coach(conn, user["id"]),
+            "stats": {**dict(stats), "favorite_court": favorite}, "partners": [dict(p) for p in partners]}
 
 
 @router.patch("/me")
@@ -190,14 +195,14 @@ async def change_password(body: PasswordIn, user: User, conn: Conn):
             WHERE id = $1 RETURNING {USER_COLUMNS}""",
         user["id"], hash_password(body.new_password),
     )
-    return _session(u)  # este aparelho continua logado; os demais caem
+    return _session(u, await _is_coach(conn, user["id"]))  # este aparelho continua logado; os demais caem
 
 
 @router.post("/me/logout-all")
 async def logout_all(user: User, conn: Conn):
     u = await conn.fetchrow(
         f"UPDATE users SET token_version = token_version + 1 WHERE id = $1 RETURNING {USER_COLUMNS}", user["id"])
-    return _session(u)
+    return _session(u, await _is_coach(conn, user["id"]))
 
 
 @router.get("/me/export")

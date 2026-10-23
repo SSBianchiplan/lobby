@@ -1,5 +1,6 @@
 """Aulas e alunos: professores, turmas recorrentes, aulas (sessões), matrículas, chamada, mensalidades e check-in do aluno."""
 
+import secrets
 from datetime import date, datetime, time, timedelta
 from typing import Literal
 
@@ -11,6 +12,7 @@ from ..config import get_settings
 from ..deps import Admin, Conn, User
 from ..domain import day_infos, local_dt, now_local
 from ..notify import notify
+from ..security import hash_password
 from .backoffice import Channel, WalkInIn, resolve_client
 
 router = APIRouter(prefix="/api", tags=["aulas"])
@@ -51,9 +53,10 @@ class CoachIn(BaseModel):
 @router.get("/admin/coaches")
 async def coaches(_: Admin, conn: Conn):
     rows = await conn.fetch(
-        """SELECT c.*, (SELECT count(*) FROM class_groups g WHERE g.coach_id = c.id AND g.active) AS groups
-           FROM coaches c ORDER BY c.active DESC, c.name""")
-    return [_row(r) for r in rows]
+        """SELECT c.*, (SELECT count(*) FROM class_groups g WHERE g.coach_id = c.id AND g.active) AS groups,
+                  u.email::text AS login_email
+           FROM coaches c LEFT JOIN users u ON u.id = c.user_id ORDER BY c.active DESC, c.name""")
+    return [{k: v for k, v in _row(r).items() if k != "checkin_token"} for r in rows]
 
 
 @router.post("/admin/coaches", status_code=201)
@@ -302,7 +305,7 @@ async def students(_: Admin, conn: Conn, q: str = ""):
 
 SESSION_SELECT = """
     SELECT s.id, s.group_id, s.coach_id, s.court_id, lower(s.period) AS starts_at, upper(s.period) AS ends_at, s.status, s.title,
-           s.cancel_reason, s.started_at, s.coach_checked_in_at, coalesce(s.title, g.name, 'Aula particular') AS name, g.level, g.capacity,
+           s.cancel_reason, s.started_at, s.coach_checked_in_at, s.notes, coalesce(s.title, g.name, 'Aula particular') AS name, g.level, g.capacity,
            c.name AS coach_name, c.color AS coach_color, ct.name AS court_name,
            (SELECT count(*) FROM attendance a WHERE a.session_id = s.id AND a.status = 'present') AS present,
            CASE WHEN s.group_id IS NULL THEN (SELECT count(*) FROM attendance a WHERE a.session_id = s.id)
@@ -372,6 +375,11 @@ async def create_private(body: PrivateIn, admin: Admin, conn: Conn):
 
 @router.get("/admin/class-sessions/{session_id}")
 async def session_detail(session_id: int, _: Admin, conn: Conn):
+    return await _session_detail(conn, session_id)
+
+
+async def _session_detail(conn: asyncpg.Connection, session_id: int, with_money: bool = True) -> dict:
+    """Aula + lista de chamada (matriculados ativos + avulsos). `with_money=False` para o professor."""
     s = await conn.fetchrow(SESSION_SELECT + " WHERE s.id = $1", session_id)
     if s is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Aula não encontrada.")
@@ -387,7 +395,11 @@ async def session_detail(session_id: int, _: Admin, conn: Conn):
         ) r JOIN users u ON u.id = r.user_id
         LEFT JOIN attendance a ON a.session_id = $1 AND a.user_id = u.id
         ORDER BY a.dropin NULLS FIRST, u.name""", session_id)
-    return {**_row(s), "roster": [_row(r) for r in roster]}
+    rows = [_row(r) for r in roster]
+    if not with_money:
+        for r in rows:
+            r.pop("open_cents", None)
+    return {**_row(s), "roster": rows}
 
 
 class AttendanceIn(BaseModel):
@@ -534,6 +546,42 @@ async def coach_checkin(body: CoachCheckinIn, _: Admin, conn: Conn):
                started_at = coalesce(started_at, now()) WHERE id = $1""", s["id"])
     return {"coach": {"id": c["id"], "name": c["name"]}, "already": already,
             "session": _row(await conn.fetchrow(SESSION_SELECT + " WHERE s.id = $1", s["id"]))}
+
+
+class CoachAccessIn(BaseModel):
+    email: str = Field(min_length=5, max_length=120, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+@router.put("/admin/coaches/{coach_id}/access")
+async def grant_coach_access(coach_id: int, body: CoachAccessIn, _: Admin, conn: Conn):
+    """Dá login ao professor: vincula a conta desse e-mail ou cria uma com senha temporária (mostrada uma vez,
+    troca obrigatória no primeiro acesso)."""
+    c = await conn.fetchrow("SELECT id, name, phone FROM coaches WHERE id = $1", coach_id)
+    if c is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Professor não encontrado.")
+    email = body.email.strip().lower()
+    temp = None
+    async with conn.transaction():
+        u = await conn.fetchrow("SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL", email)
+        if u is None:
+            temp = "-".join(secrets.token_hex(2) for _ in range(3))
+            u = await conn.fetchrow(
+                """INSERT INTO users (name, email, phone, password_hash, must_change_password, accepted_terms_at)
+                   VALUES ($1, $2, $3, $4, true, NULL) RETURNING id""",
+                c["name"], email, c["phone"], hash_password(temp))
+        try:
+            await conn.execute("UPDATE coaches SET user_id = $2, email = $3 WHERE id = $1", coach_id, u["id"], email)
+        except asyncpg.UniqueViolationError:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Essa conta já está vinculada a outro professor.")
+        await notify(conn, u["id"], "coach", "Área do professor liberada", "Acesse a área do professor para ver suas aulas e fazer a chamada.", "/professor")
+    return {"user_id": u["id"], "email": email, "temporary_password": temp}
+
+
+@router.delete("/admin/coaches/{coach_id}/access")
+async def revoke_coach_access(coach_id: int, _: Admin, conn: Conn):
+    if await conn.execute("UPDATE coaches SET user_id = NULL WHERE id = $1", coach_id) == "UPDATE 0":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Professor não encontrado.")
+    return {"ok": True}
 
 
 @router.get("/admin/coaches/{coach_id}/card")

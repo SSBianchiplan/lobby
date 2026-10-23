@@ -344,6 +344,7 @@ td.rt-actions > * + * { margin-left: 6px; } /* contém os .sr-only absolutos dos
 .coach-dot { width: 14px; height: 14px; border-radius: 7px; flex: none; }
 .my-classes { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
 .occ-class { background: var(--class-bg); color: var(--class-ink); }
+.attend.big button { height: 44px; padding: 0 16px; font-size: 13px; }
 @media (max-width: 760px) { .attend { width: 100%; } .attend button { flex: 1; } }
 
 /* Leitor de check-in (tablet da recepção) */

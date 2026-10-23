@@ -99,6 +99,13 @@ configurações, preços, feriados, quadras, bloqueios e dados reais ficam.
   aula de agora) e QR do professor (registra a chegada e **inicia a aula**). Cada QR pode ser baixado ou compartilhado
   como cartão de check-in (imagem); o aluno vê turmas, próximas aulas, frequência, mensalidades e o QR no perfil.
 
+### Área do professor (`/professor`)
+
+O admin dá acesso em *Aulas › Professores* (vincula a conta do e-mail ou cria uma com senha temporária e troca
+obrigatória). O professor vê só as próprias aulas: aulas de hoje com **Iniciar aula** (mesmo efeito do QR na
+recepção), chamada, aluno avulso, **anotações da aula** (o admin vê na chamada), agenda dos próximos dias, turmas,
+alunos com frequência e o próprio QR. Sem valores financeiros e sem cancelar aulas (`routers/coach.py`).
+
 ### Tema escuro, telas e compartilhamento
 
 - **Tema escuro** (paleta do VS Code Dark) por tokens CSS: automático pelo sistema ou escolhido no cabeçalho/perfil.

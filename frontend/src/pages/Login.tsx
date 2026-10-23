@@ -62,7 +62,8 @@ function useAfterAuth() {
   const navigate = useNavigate();
   return {
     next,
-    go: (u: User) => navigate(u.must_change_password ? "/perfil?trocar-senha=1" : next === "/" && u.role === "admin" ? "/admin" : next, { replace: true }),
+    go: (u: User) => navigate(u.must_change_password ? "/perfil?trocar-senha=1"
+      : next === "/" && u.role === "admin" ? "/admin" : next === "/" && u.is_coach ? "/professor" : next, { replace: true }),
   };
 }
 

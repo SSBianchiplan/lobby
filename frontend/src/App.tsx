@@ -12,6 +12,7 @@ import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import Admin from "./pages/admin/Admin";
 import Terms from "./pages/Terms";
+import CoachArea from "./pages/CoachArea";
 import CheckinLink, { CoachLink, StudentLink } from "./pages/CheckinLink";
 import CheckinKiosk from "./pages/admin/CheckinKiosk";
 
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/termos" element={<Terms />} />
         <Route path="/checkin/:code" element={<CheckinLink />} />
         <Route path="/aluno/:token" element={<StudentLink />} />
+        <Route path="/professor" element={<RequireAuth><CoachArea /></RequireAuth>} />
         <Route path="/professor/:token" element={<CoachLink />} />
         <Route path="/recepcao" element={<RequireAuth admin><CheckinKiosk /></RequireAuth>} />
         <Route path="/perfil" element={<RequireAuth><Profile /></RequireAuth>} />

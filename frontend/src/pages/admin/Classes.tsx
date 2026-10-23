@@ -7,14 +7,14 @@ import { Modal, useConfirm } from "../../components/Modal";
 import { QR } from "../../components/QR";
 import { TicketActions } from "../../components/Ticket";
 import { useToast } from "../../components/Toast";
-import { addMinutes, coachQrUrl, dayLabel, isoDay, LEVEL_LABEL, money } from "../../format";
+import { addMinutes, coachQrUrl, dayLabel, firstName, isoDay, LEVEL_LABEL, money } from "../../format";
 import { useClub } from "../../hooks";
 import { ClientPicker, type PickedClient } from "./ClientPicker";
 import { CHANNEL_LABEL, COUNTER_CHANNELS, Kpi, Panel, pct } from "./shared";
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
 
-type Coach = { id: number; name: string; phone: string | null; email: string | null; color: string; active: boolean; groups: number };
+type Coach = { id: number; name: string; phone: string | null; email: string | null; color: string; active: boolean; groups: number; login_email: string | null };
 type Group = {
   id: number; name: string; coach_id: number; court_id: number; weekdays: number[]; starts: string; duration_min: number;
   level: string | null; capacity: number; monthly_price_cents: number; dropin_price_cents: number; starts_on: string; ends_on: string | null;
@@ -24,7 +24,7 @@ type Group = {
 type Session = {
   id: number; group_id: number | null; coach_id: number; court_id: number; starts_at: string; ends_at: string; status: "scheduled" | "done" | "cancelled";
   name: string; level: string | null; capacity: number | null; coach_name: string; coach_color: string; court_name: string;
-  present: number; expected: number; cancel_reason: string | null; started_at: string | null; coach_checked_in_at: string | null;
+  present: number; expected: number; cancel_reason: string | null; started_at: string | null; coach_checked_in_at: string | null; notes: string | null;
 };
 type RosterRow = { user_id: number; name: string; phone: string | null; level: string | null; status: "present" | "absent" | "justified" | null; dropin: boolean | null; checked_in_at: string | null; open_cents: number };
 type Generation = { created: number; skipped: { date: string; reason: string }[] };
@@ -150,6 +150,7 @@ export function SessionModal({ id, onClose }: { id: number | null; onClose: () =
             {s.started_at && s.status !== "cancelled" && <> · iniciada às {hhmm(s.started_at)}</>}
             {s.coach_checked_in_at && <> · professor chegou às {hhmm(s.coach_checked_in_at)}</>}
           </p>
+          {s.notes && <p style={{ padding: "10px 12px", borderRadius: 12, background: "var(--cream)", color: "var(--cream-ink)", fontSize: 13, fontWeight: 600 }}>📝 {s.notes}</p>}
           <h3 className="field" style={{ margin: 0 }}>CHAMADA · {s.present} presente(s)</h3>
           {!s.roster.length ? <p className="empty">Nenhum aluno nesta aula ainda.</p> : (
             <ul className="roster">
@@ -535,6 +536,7 @@ function Coaches() {
   const q = useQuery({ queryKey: ["admin", "coaches"], queryFn: () => api<Coach[]>("/api/admin/coaches") });
   const [edit, setEdit] = useState<Coach | "new" | null>(null);
   const [card, setCard] = useState<number | null>(null);
+  const [access, setAccess] = useState<Coach | null>(null);
   const [f, setF] = useState({ name: "", phone: "", email: "", color: "#7C3AED", active: true });
   const open = (c: Coach | "new") => { setEdit(c); setF(c === "new" ? { name: "", phone: "", email: "", color: "#7C3AED", active: true } : { name: c.name, phone: c.phone ?? "", email: c.email ?? "", color: c.color, active: c.active }); };
   const save = useMutation({
@@ -549,9 +551,11 @@ function Coaches() {
             <li key={c.id} style={{ opacity: c.active ? 1 : 0.55 }}>
               <span className="coach-dot" style={{ background: c.color }} aria-hidden="true" />
               <span style={{ flex: "1 1 180px", minWidth: 0 }}><strong>{c.name}</strong>{!c.active && <span className="badge badge-off" style={{ marginLeft: 6 }}>inativo</span>}
-                <br /><small className="muted">{[c.phone, c.email].filter(Boolean).join(" · ") || "sem contato"} · {c.groups} turma(s)</small></span>
+                <br /><small className="muted">{[c.phone, c.email].filter(Boolean).join(" · ") || "sem contato"} · {c.groups} turma(s)</small>
+                <br /><small style={{ fontWeight: 700, color: c.login_email ? "var(--ok-ink)" : "var(--muted)" }}>{c.login_email ? `✓ acessa a área do professor (${c.login_email})` : "sem acesso à área do professor"}</small></span>
               <span style={{ display: "flex", gap: 6 }}>
                 <button className="btn btn-soft btn-sm" onClick={() => setCard(c.id)}>QR de check-in</button>
+                <button className="btn btn-outline btn-sm" onClick={() => setAccess(c)}>{c.login_email ? "Acesso" : "Dar acesso"}</button>
                 <button className="btn btn-outline btn-sm" onClick={() => open(c)}>Editar</button>
               </span>
             </li>
@@ -559,6 +563,7 @@ function Coaches() {
         </ul>
       )}
       <CoachCard id={card} onClose={() => setCard(null)} />
+      <CoachAccess coach={access} onClose={() => setAccess(null)} />
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit === "new" ? "Novo professor" : "Editar professor"} width={480}>
         <form style={{ display: "flex", flexDirection: "column", gap: 12 }} onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
           <label className="field">NOME<input className="input" required minLength={2} maxLength={80} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></label>
@@ -604,6 +609,57 @@ function CoachCard({ id, onClose }: { id: number | null; onClose: () => void }) 
           {wa && <a className="btn btn-outline btn-sm" href={wa} target="_blank" rel="noopener">Enviar o link pelo WhatsApp do professor</a>}
         </div>
       )}
+    </Modal>
+  );
+}
+
+
+/** Login do professor: vincula a conta do e-mail (ou cria com senha temporária) ou retira o acesso. */
+function CoachAccess({ coach, onClose }: { coach: Coach | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [email, setEmail] = useState("");
+  const [temp, setTemp] = useState<{ email: string; password: string | null } | null>(null);
+  const [lastId, setLastId] = useState<number | null>(null);
+  if ((coach?.id ?? null) !== lastId) { setLastId(coach?.id ?? null); setEmail(coach?.login_email ?? coach?.email ?? ""); setTemp(null); }
+  const grant = useMutation({
+    mutationFn: () => api<{ email: string; temporary_password: string | null }>(`/api/admin/coaches/${coach!.id}/access`, { method: "PUT", json: { email } }),
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["admin", "coaches"] }); setTemp({ email: r.email, password: r.temporary_password }); },
+    onError: (e) => toast(errMsg(e)),
+  });
+  const revoke = useMutation({
+    mutationFn: () => api(`/api/admin/coaches/${coach!.id}/access`, { method: "DELETE" }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "coaches"] }); toast("Acesso retirado"); onClose(); },
+  });
+  const link = `${location.origin}/entrar`;
+  return (
+    <Modal open={!!coach} onClose={onClose} title="Acesso à área do professor" width={480}>
+      {coach && (temp ? (
+        <div className="stack gap-14">
+          <p style={{ fontSize: 15, fontWeight: 600 }}>✓ {coach.name} já pode entrar com <strong>{temp.email}</strong>.</p>
+          {temp.password ? (
+            <p className="alert alert-cream" style={{ padding: 14, borderRadius: 14, fontWeight: 600 }}>
+              Senha temporária: <code style={{ fontSize: 18, fontWeight: 900, userSelect: "all" }}>{temp.password}</code><br />
+              Passe agora — ela não aparece de novo. No primeiro acesso, o professor escolhe uma senha nova.
+            </p>
+          ) : <p className="muted" style={{ fontSize: 14, fontWeight: 600 }}>Essa conta já existia: o professor entra com a senha que já usa.</p>}
+          {coach.phone && <a className="btn btn-primary" target="_blank" rel="noopener" href={`https://wa.me/55${coach.phone.replace(/\D/g, "").replace(/^55/, "")}?text=${encodeURIComponent(
+            `🎾 *Padel Lobby · Área do professor*\n\nOlá, ${firstName(coach.name)}! Sua área está liberada: lá você vê suas aulas, faz a chamada e inicia a aula pelo celular.\n\n👉 Entre em ${link}\nE-mail: ${temp.email}${temp.password ? `\nSenha temporária: ${temp.password}` : ""}`)}`}>Enviar acesso pelo WhatsApp</a>}
+          <button className="btn btn-outline" onClick={onClose}>Fechar</button>
+        </div>
+      ) : (
+        <form className="stack gap-14" onSubmit={(e) => { e.preventDefault(); grant.mutate(); }}>
+          <p className="muted" style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.5 }}>O professor entra no app com este e-mail e vê só as próprias aulas: chamada, iniciar aula, anotações e alunos. Não vê valores nem cancela aulas.</p>
+          <label className="field">E-MAIL DE LOGIN<input className="input" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+            {coach.login_email && <button type="button" className="btn btn-outline" style={{ marginRight: "auto" }} disabled={revoke.isPending}
+              onClick={async () => { if (await confirm({ title: "Retirar o acesso?", message: `${coach.name} deixa de acessar a área do professor. A conta continua existindo.`, confirmLabel: "Retirar acesso", danger: true })) revoke.mutate(); }}>Retirar acesso</button>}
+            <button type="button" className="btn btn-outline" onClick={onClose}>Cancelar</button>
+            <button className="btn btn-primary" disabled={grant.isPending}>{coach.login_email ? "Atualizar acesso" : "Dar acesso"}</button>
+          </div>
+        </form>
+      ))}
     </Modal>
   );
 }

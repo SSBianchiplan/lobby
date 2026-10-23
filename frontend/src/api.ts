@@ -4,7 +4,7 @@ export type Hand = "destro" | "canhoto";
 export type User = {
   id: number; name: string; email: string; phone: string | null; role: "player" | "admin"; is_master?: boolean;
   city?: string | null; level?: Level | null; side?: Side | null; hand?: Hand | null;
-  marketing_opt_in?: boolean; must_change_password?: boolean; member_since?: string;
+  marketing_opt_in?: boolean; must_change_password?: boolean; member_since?: string; is_coach?: boolean;
 };
 export type Session = { token: string; user: User };
 

@@ -130,6 +130,12 @@ export default function Profile() {
           </Section>
         )}
 
+        {user.is_coach && (
+          <Link to="/professor" className="card" style={{ marginTop: 16, padding: 18, display: "flex", alignItems: "center", gap: 12, textDecoration: "none", color: "var(--ink)", boxShadow: "none" }}>
+            <Shield style={{ color: "var(--ball)" }} /><strong style={{ flex: 1 }}>Área do professor · aulas, chamada e alunos</strong><span className="accent">→</span>
+          </Link>
+        )}
+
         {user.role === "admin" && (
           <Link to="/admin" className="card" style={{ marginTop: 16, padding: 18, display: "flex", alignItems: "center", gap: 12, textDecoration: "none", color: "var(--ink)", boxShadow: "none" }}>
             <Shield style={{ color: "var(--red)" }} /><strong style={{ flex: 1 }}>Painel da administração{user.is_master && " · admin master"}</strong><span className="accent">→</span>
