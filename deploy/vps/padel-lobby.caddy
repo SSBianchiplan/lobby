@@ -1,0 +1,17 @@
+# Padel Lobby — lobby.gplansis.com (bloco próprio; não toca nos outros sites).
+lobby.gplansis.com {
+	import seguranca_hub
+	reverse_proxy 127.0.0.1:8460 {
+		header_up X-Forwarded-Proto https
+	}
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy same-origin
+		-Server
+	}
+	encode gzip zstd
+	log {
+		output file /var/log/caddy/padel-lobby.log
+	}
+}

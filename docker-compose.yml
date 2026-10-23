@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: padel
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-padel}
+      POSTGRES_DB: padel_lobby
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U padel -d padel_lobby"]
+      interval: 5s
+      retries: 10
+  app:
+    build: .
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PADEL_DATABASE_URL: postgresql://padel:${DB_PASSWORD:-padel}@db:5432/padel_lobby
+      PADEL_JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET}
+      PADEL_PIX_WEBHOOK_SECRET: ${PIX_WEBHOOK_SECRET:?defina PIX_WEBHOOK_SECRET}
+      PADEL_DEV_MODE: "false"
+    ports: ["8000:8000"]
+volumes:
+  pgdata:

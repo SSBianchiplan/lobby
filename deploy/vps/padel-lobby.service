@@ -1,0 +1,25 @@
+# Padel Lobby — uvicorn no loopback, atrás do Caddy (lobby.gplansis.com).
+# 1 worker: as rotinas periódicas (expirar Pix, lembretes) rodam dentro do processo.
+[Unit]
+Description=Padel Lobby (reservas de quadras)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=padel-lobby
+Group=padel-lobby
+WorkingDirectory=/opt/padel-lobby/backend
+ExecStart=/opt/padel-lobby/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8460 --workers 1 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target
