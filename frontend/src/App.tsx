@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth";
 import { Spinner } from "./components/Layout";
+import { Tracker } from "./components/Tracker";
 import Home from "./pages/Home";
 import Agenda from "./pages/Agenda";
 import Confirm from "./pages/Confirm";
@@ -36,6 +37,7 @@ export default function App() {
   return (
     <div className="app">
       <ScrollTop />
+      <Tracker />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/agenda" element={<Agenda />} />

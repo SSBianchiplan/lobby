@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import db, jobs, preview
 from .config import get_settings
-from .routers import admin, auth, backoffice, bookings, classes, club, coach
+from .routers import admin, auth, backoffice, bookings, classes, club, coach, logs
 
 logging.basicConfig(level=logging.INFO)
 mimetypes.add_type("application/manifest+json", ".webmanifest")
@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Padel Lobby API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins, allow_methods=["*"], allow_headers=["*"])
 
-for r in (auth.router, club.router, bookings.router, admin.router, backoffice.router, classes.router, coach.router):
+for r in (auth.router, club.router, bookings.router, admin.router, backoffice.router, classes.router, coach.router, logs.router):
     app.include_router(r)
 
 

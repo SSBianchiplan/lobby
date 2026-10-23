@@ -7,9 +7,10 @@ from collections import defaultdict, deque
 from typing import Literal
 
 import asyncpg
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 
+from ..audit import log_access
 from ..config import get_settings
 from ..deps import Conn, User
 from ..domain import now_local
@@ -94,7 +95,7 @@ def _recent_fails(key: str) -> deque[float]:
 
 
 @router.post("/auth/register", status_code=201)
-async def register(body: RegisterIn, conn: Conn):
+async def register(body: RegisterIn, request: Request, conn: Conn):
     if not body.accept_terms:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Para criar a conta, aceite os termos de uso e a política de privacidade.")
     if get_settings().is_master(body.email):
@@ -109,22 +110,27 @@ async def register(body: RegisterIn, conn: Conn):
         )
     except asyncpg.UniqueViolationError:
         raise HTTPException(status.HTTP_409_CONFLICT, "Já existe uma conta com esse e-mail.")
+    await log_access(conn, request, "register", user_id=u["id"], email=str(u["email"]))
     return _session(u)
 
 
 @router.post("/auth/login")
-async def login(body: LoginIn, conn: Conn):
+async def login(body: LoginIn, request: Request, conn: Conn):
     key = body.email.lower()
     if len(_recent_fails(key)) >= MAX_FAILS:
+        await log_access(conn, request, "login_locked", email=key)
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Muitas tentativas. Aguarde alguns minutos e tente de novo.")
     u = await conn.fetchrow(f"SELECT {USER_COLUMNS}, password_hash, disabled_at FROM users WHERE email = $1 AND deleted_at IS NULL", body.email)
     if u is None or not verify_password(body.password, u["password_hash"]):
         _FAILS[key].append(time.monotonic())
+        await log_access(conn, request, "login_fail", user_id=u["id"] if u else None, email=key)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "E-mail ou senha incorretos.")
     if u["disabled_at"] is not None:  # só depois da senha certa: não revela quais contas existem
+        await log_access(conn, request, "login_inactive", user_id=u["id"], email=key)
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Conta inativa. Fale com a recepção do clube.")
     _FAILS.pop(key, None)
     await conn.execute("UPDATE users SET last_login_at = now() WHERE id = $1", u["id"])
+    await log_access(conn, request, "login_ok", user_id=u["id"], email=key)
     return _session(u, await _is_coach(conn, u["id"]))
 
 
@@ -188,7 +194,7 @@ async def _check_password(conn: asyncpg.Connection, user_id: int, password: str)
 
 
 @router.post("/me/password")
-async def change_password(body: PasswordIn, user: User, conn: Conn):
+async def change_password(body: PasswordIn, request: Request, user: User, conn: Conn):
     await _check_password(conn, user["id"], body.current_password)
     if body.new_password == body.current_password:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "A nova senha precisa ser diferente da atual.")
@@ -197,13 +203,15 @@ async def change_password(body: PasswordIn, user: User, conn: Conn):
             WHERE id = $1 RETURNING {USER_COLUMNS}""",
         user["id"], hash_password(body.new_password),
     )
+    await log_access(conn, request, "password_change", user_id=user["id"], email=str(user["email"]))
     return _session(u, await _is_coach(conn, user["id"]))  # este aparelho continua logado; os demais caem
 
 
 @router.post("/me/logout-all")
-async def logout_all(user: User, conn: Conn):
+async def logout_all(request: Request, user: User, conn: Conn):
     u = await conn.fetchrow(
         f"UPDATE users SET token_version = token_version + 1 WHERE id = $1 RETURNING {USER_COLUMNS}", user["id"])
+    await log_access(conn, request, "logout_all", user_id=user["id"], email=str(user["email"]))
     return _session(u, await _is_coach(conn, user["id"]))
 
 
@@ -231,7 +239,7 @@ async def export_data(user: User, conn: Conn):
 
 
 @router.delete("/me")
-async def delete_me(body: ConfirmIn, user: User, conn: Conn):
+async def delete_me(body: ConfirmIn, request: Request, user: User, conn: Conn):
     """Exclusão = anonimização. Reservas e pagamentos ficam (obrigação fiscal e caixa), sem dados pessoais."""
     if get_settings().is_master(user["email"]):
         raise HTTPException(status.HTTP_409_CONFLICT, "A conta do admin master não pode ser excluída.")
@@ -243,6 +251,7 @@ async def delete_me(body: ConfirmIn, user: User, conn: Conn):
     if active:
         raise HTTPException(status.HTTP_409_CONFLICT, "Você tem reservas futuras. Cancele-as (ou jogue!) antes de excluir a conta.")
     await anonymize_user(conn, user["id"])
+    await log_access(conn, request, "account_deleted", user_id=user["id"], email=str(user["email"]), actor_id=user["id"])
     return {"ok": True}
 
 

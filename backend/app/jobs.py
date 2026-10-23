@@ -62,7 +62,7 @@ _last_generation: date | None = None
 
 
 async def roll_class_calendar(conn: asyncpg.Connection) -> int:
-    """Uma vez por dia, estende o calendário de cada turma ativa (mantém sempre ~4 semanas à frente)."""
+    """Uma vez por dia: estende o calendário de cada turma ativa (~4 semanas à frente) e apaga logs vencidos."""
     global _last_generation
     today = now_local().date()
     if _last_generation == today:
@@ -71,6 +71,9 @@ async def roll_class_calendar(conn: asyncpg.Connection) -> int:
     created = 0
     for g in await conn.fetch("SELECT id FROM class_groups WHERE active"):
         created += (await generate_sessions(conn, g["id"]))["created"]
+    # retenção dos logs (LGPD: guardar só o necessário)
+    await conn.execute("DELETE FROM page_views WHERE at < now() - interval '180 days'")
+    await conn.execute("DELETE FROM access_log WHERE at < now() - interval '365 days'")
     _last_generation = today
     return created
 

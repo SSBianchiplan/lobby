@@ -15,13 +15,14 @@ import Payments from "./Payments";
 import Reports from "./Reports";
 import Settings from "./Settings";
 import { downloadCsv, pct, ResTable, useAdminActions } from "./shared";
+import Logs from "./Logs";
 import Manual from "./Manual";
 import Users from "./Users";
 
 const TABS: [string, string][] = [
   ["/admin", "Painel"], ["/admin/agenda", "Agenda do dia"], ["/admin/calendario", "Calendário"], ["/admin/agendamentos", "Agendamentos"],
   ["/admin/disponibilidade", "Disponibilidade"], ["/admin/aulas", "Aulas"], ["/admin/pagamentos", "Pagamentos"], ["/admin/fechamento", "Fechamento"],
-  ["/admin/relatorios", "Relatórios"], ["/admin/usuarios", "Usuários"], ["/admin/config", "Configurações"],
+  ["/admin/relatorios", "Relatórios"], ["/admin/usuarios", "Usuários"], ["/admin/acessos", "Acessos"], ["/admin/config", "Configurações"],
 ];
 
 export default function Admin() {
@@ -50,6 +51,7 @@ export default function Admin() {
             <Route path="relatorios" element={<Reports />} />
             <Route path="usuarios" element={<Users />} />
             <Route path="manual" element={<Manual />} />
+            <Route path="acessos/*" element={<Logs />} />
             <Route path="config" element={<Settings />} />
           </Routes>
         </div>

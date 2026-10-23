@@ -395,6 +395,14 @@ button.cal-head { cursor: pointer; }
   .cal-cell-evs, .cal-cell-rev, .cal-cell-meta { display: none; }
 }
 
+/* Logs */
+.log-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.log-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.log-bars li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(60px, 1fr) auto; gap: 10px; align-items: center; }
+.log-bars-label { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-bars-n { font-weight: 800; white-space: nowrap; }
+.log-bars-n small { color: var(--muted); font-weight: 600; }
+
 /* Aulas */
 .chip-link { height: 40px; padding: 0 16px; border-radius: 20px; background: var(--surface); color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; border: 1px solid var(--border); }
 .chip-link.active { background: var(--inverse-bg); color: var(--inverse-fg); border-color: var(--inverse-bg); }

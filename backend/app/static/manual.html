@@ -83,6 +83,7 @@
       <li><a href="#fechamento">Fechamento de caixa</a></li>
       <li><a href="#relatorios">Relatórios</a></li>
       <li><a href="#usuarios">Usuários e admin master</a></li>
+      <li><a href="#acessos">Acessos (logs)</a></li>
       <li><a href="#config">Configurações</a></li>
       <li><a href="#rotinas">Rotinas do dia a dia</a></li>
       <li><a href="#regras">Regras de negócio</a></li>
@@ -289,8 +290,18 @@
       </ul>
     </section>
 
+    <section id="acessos">
+      <h2><span class="n">16.</span> Acessos (logs)</h2>
+      <p><b>Admin › Acessos</b> tem duas visões, com filtro de período:</p>
+      <ul>
+        <li><b>Visitantes do site:</b> visitantes únicos e novos, visualizações, visitas, páginas por visita, gráfico por dia e por hora, páginas mais vistas, de onde vêm (Instagram, Google, WhatsApp…), aparelhos, navegadores, sistemas e visitas recentes. Robôs ficam fora (marque “Incluir robôs” para ver). Telas internas (admin, recepção, professor) não contam.</li>
+        <li><b>Log de acessos:</b> logins, senhas erradas, bloqueios por tentativas, tentativas de conta inativa, cadastros, trocas e redefinições de senha, “sair de todos”, inativações e exclusões — com data, conta, IP, aparelho e quem fez. Destaques de e-mails e IPs com mais falhas ajudam a perceber tentativas de invasão.</li>
+      </ul>
+      <div class="rule"><b>Privacidade (LGPD):</b> o visitante é um código aleatório do navegador, o IP fica truncado e códigos de convite/QR não são gravados. Visitas são apagadas após 180 dias e o log de acessos após 1 ano.</div>
+    </section>
+
     <section id="config">
-      <h2><span class="n">16.</span> Configurações</h2>
+      <h2><span class="n">17.</span> Configurações</h2>
       <ul>
         <li><b>Preços:</b> faixas por dias da semana, feriados, horário, valor por hora, prioridade e promoção.</li>
         <li><b>Regras:</b> cancelamento grátis (h), prazo do Pix (min), antecedência (dias), jogadores por quadra, reservas futuras por cliente, durações.</li>
@@ -302,7 +313,7 @@
     </section>
 
     <section id="rotinas">
-      <h2><span class="n">17.</span> Rotinas do dia a dia</h2>
+      <h2><span class="n">18.</span> Rotinas do dia a dia</h2>
       <h3>Abertura</h3>
       <ul><li>Ligar o tablet em <code>/recepcao</code> (tela cheia).</li><li>Conferir <b>Calendário › Dia</b> e <b>Agenda do dia</b>: reservas a receber e aulas do dia.</li></ul>
       <h3>Durante o dia</h3>
@@ -314,7 +325,7 @@
     </section>
 
     <section id="regras">
-      <h2><span class="n">18.</span> Regras de negócio (resumo)</h2>
+      <h2><span class="n">19.</span> Regras de negócio (resumo)</h2>
       <table>
         <tr><th>Tema</th><th>Regra</th></tr>
         <tr><td>Funcionamento padrão</td><td>Seg–Sex 12–13h e 14–23h · Sáb 9–21h · Dom fechado (configurável por feriados)</td></tr>
@@ -329,7 +340,7 @@
     </section>
 
     <section id="problemas">
-      <h2><span class="n">19.</span> Solução de problemas</h2>
+      <h2><span class="n">20.</span> Solução de problemas</h2>
       <table>
         <tr><th>Situação</th><th>O que fazer</th></tr>
         <tr><td>“O caixa de hoje já foi fechado”</td><td>Reabra em Fechamento (com motivo), lance e feche de novo.</td></tr>

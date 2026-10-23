@@ -8,10 +8,11 @@ from datetime import date, time, timedelta
 from typing import Literal
 
 import asyncpg
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 
 from .. import reservations as svc
+from ..audit import log_access
 from ..config import get_settings
 from ..deps import Admin, Conn, Master
 from ..security import hash_password, verify_password
@@ -474,7 +475,7 @@ class NewUserIn(BaseModel):
 
 
 @router.post("/users", status_code=201)
-async def create_user(body: NewUserIn, admin: Admin, conn: Conn):
+async def create_user(body: NewUserIn, request: Request, admin: Admin, conn: Conn):
     """Cria a conta pela administração com senha temporária (mostrada uma vez; troca obrigatória no 1º acesso).
     Admin comum cria jogadores; administradores, só o master."""
     settings = get_settings()
@@ -492,6 +493,7 @@ async def create_user(body: NewUserIn, admin: Admin, conn: Conn):
     except asyncpg.UniqueViolationError:
         raise HTTPException(status.HTTP_409_CONFLICT, "Já existe uma conta com esse e-mail.")
     log.info("usuário %s (%s) criado por %s", u["email"], u["role"], admin["email"])
+    await log_access(conn, request, "user_created", user_id=u["id"], email=u["email"], actor_id=admin["id"])
     return {**dict(u), "temporary_password": temp}
 
 
@@ -594,7 +596,7 @@ class ActiveIn(BaseModel):
 
 
 @router.put("/users/{user_id}/active")
-async def set_active(user_id: int, body: ActiveIn, admin: Admin, conn: Conn):
+async def set_active(user_id: int, body: ActiveIn, request: Request, admin: Admin, conn: Conn):
     """Inativar bloqueia o login e derruba as sessões; reservas e histórico ficam. Reativar devolve o acesso."""
     u = await _target(conn, admin, user_id, "inativar" if not body.active else "reativar")
     if body.active:
@@ -603,11 +605,12 @@ async def set_active(user_id: int, body: ActiveIn, admin: Admin, conn: Conn):
         await conn.execute(
             "UPDATE users SET disabled_at = now(), disabled_by = $2, token_version = token_version + 1 WHERE id = $1", user_id, admin["id"])
     log.info("usuário %s %s por %s", u["email"], "reativado" if body.active else "inativado", admin["email"])
+    await log_access(conn, request, "account_enabled" if body.active else "account_disabled", user_id=user_id, email=u["email"], actor_id=admin["id"])
     return {"ok": True, "active": body.active}
 
 
 @router.delete("/users/{user_id}")
-async def delete_user(user_id: int, admin: Admin, conn: Conn):
+async def delete_user(user_id: int, request: Request, admin: Admin, conn: Conn):
     """Sem histórico: apaga a conta. Com histórico: anonimiza (reservas e pagamentos ficam, sem dados pessoais)."""
     u = await _target(conn, admin, user_id, "excluir")
     future = await conn.fetchval(
@@ -630,6 +633,7 @@ async def delete_user(user_id: int, admin: Admin, conn: Conn):
             await conn.execute("DELETE FROM users WHERE id = $1", user_id)
         mode = "deleted"
     log.warning("usuário %s excluído (%s) por %s", u["email"], mode, admin["email"])
+    await log_access(conn, request, "account_deleted", user_id=user_id if mode == "anonymized" else None, email=u["email"], actor_id=admin["id"])
     return {"ok": True, "mode": mode}
 
 
@@ -649,7 +653,7 @@ async def set_role(user_id: int, body: RoleIn, _: Master, conn: Conn):
 
 
 @router.post("/users/{user_id}/reset-password")
-async def reset_password(user_id: int, admin: Admin, conn: Conn):
+async def reset_password(user_id: int, request: Request, admin: Admin, conn: Conn):
     """"Esqueci a senha" sem e-mail: a recepção gera uma senha temporária (mostrada uma vez) e o jogador
     é obrigado a trocá-la no próximo acesso. Senha de admin só o master redefine; a do master, ninguém por aqui."""
     u = await conn.fetchrow("SELECT id, email, role FROM users WHERE id = $1 AND deleted_at IS NULL", user_id)
@@ -666,6 +670,7 @@ async def reset_password(user_id: int, admin: Admin, conn: Conn):
            WHERE id = $1""",
         user_id, hash_password(temp),
     )
+    await log_access(conn, request, "password_reset", user_id=user_id, email=u["email"], actor_id=admin["id"])
     return {"temporary_password": temp}
 
 

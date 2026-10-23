@@ -37,7 +37,8 @@ export default function Terms() {
               <li><strong>Cadastro</strong>: nome, e-mail, WhatsApp (opcional) e senha (guardada só como hash). Para identificar você e falar sobre suas reservas.</li>
               <li><strong>Perfil de jogador</strong> (opcional): categoria, lado, mão dominante e cidade. Para organizar jogos e mostrar seu perfil.</li>
               <li><strong>Reservas e pagamentos</strong>: quadra, horário, jogadores convidados, forma e situação do pagamento. Para prestar o serviço e cumprir obrigações fiscais.</li>
-              <li><strong>Registros técnicos</strong>: endereço IP e data dos acessos, para segurança e prevenção de fraude.</li>
+              <li><strong>Registros de acesso à conta</strong>: data, IP e aparelho de logins, tentativas com senha errada e trocas de senha, para segurança e prevenção de fraude (guardados por 1 ano).</li>
+              <li><strong>Estatística de visitas</strong>: páginas vistas, origem e tipo de aparelho, com um código aleatório do navegador e IP truncado — sem identificar você. Se o seu navegador pede “não rastrear”, nada é registrado (guardadas por 180 dias).</li>
             </ul>
             <p>Bases legais (LGPD, art. 7º): execução do contrato de locação, cumprimento de obrigação legal e legítimo interesse em segurança.
               Promoções por mensagem só com o seu consentimento, que você pode retirar no perfil.</p>
