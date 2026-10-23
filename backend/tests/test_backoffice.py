@@ -124,3 +124,17 @@ async def test_static_fallback_does_not_escape_dist(client):
     r = await client.get("/%2e%2e/%2e%2e/backend/requirements.txt")
     assert "asyncpg" not in r.text and "<div id=\"root\"" in r.text
     assert (await client.get("/manifest.webmanifest")).headers["content-type"].startswith("application/manifest+json")
+
+
+async def test_court_photos_and_gallery(client):
+    club = (await client.get("/api/club")).json()
+    assert len(club["gallery"]) == 4
+    photos = {c["number"]: c["photo"] for c in club["courts"]}
+    assert photos == {1: "/quadras/quadra-vidro-1600.webp", 2: "/quadras/quadra-fundo-1600.webp", 3: "/quadras/quadra-lateral-1600.webp"}
+    adm = await admin(client)
+    c1 = club["courts"][0]["id"]
+    assert (await client.put(f"/api/admin/courts/{c1}/photo", json={"photo": "/quadras/quadra-rede-1600.webp"}, headers=adm)).status_code == 200
+    assert (await client.put(f"/api/admin/courts/{c1}/photo", json={"photo": "https://evil.example/x.webp"}, headers=adm)).status_code == 422
+    assert (await client.get("/api/club")).json()["courts"][0]["photo"] == "/quadras/quadra-rede-1600.webp"
+    ana = await make_user(client)
+    assert (await client.put(f"/api/admin/courts/{c1}/photo", json={"photo": None}, headers=ana)).status_code == 403

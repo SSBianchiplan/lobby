@@ -6,9 +6,10 @@ import { useAuth } from "../auth";
 import { useBooking } from "../booking";
 import { BottomNav, MobileHeader, SiteFooter, SiteHeader, Spinner } from "../components/Layout";
 import { AiVisionCard } from "../components/AiVisionCard";
+import { CourtCarousel } from "../components/CourtCarousel";
 import { TournamentCard } from "../components/TournamentCard";
 import { Ball } from "../components/Icons";
-import { addMinutes, dayLabel, money } from "../format";
+import { addMinutes, dayLabel, money, photoSrcSet } from "../format";
 import { pickDay, useAvailability, useCalendar, useClub, useIsMobile } from "../hooks";
 
 export default function Home() {
@@ -118,20 +119,25 @@ function HomeWeb() {
           </form>
         </section>
 
-        <div className="container" style={{ paddingTop: 32 }}><TournamentCard /></div>
+        {!!club?.gallery?.length && (
+          <div className="container" style={{ paddingTop: 32 }}>
+            <CourtCarousel photos={club.gallery} caption={`${club.courts.length} quadras cobertas · Centro de Rio Grande`} />
+          </div>
+        )}
+        <div className="container" style={{ paddingTop: 24 }}><TournamentCard /></div>
         <div className="container" style={{ paddingTop: 24 }}><AiVisionCard /></div>
 
         <section aria-labelledby="estrutura-t" id="estrutura" className="container" style={{ paddingTop: 56 }}>
           <h2 id="estrutura-t" className="italic-title" style={{ fontSize: 32 }}>Estrutura <span className="accent">completa</span></h2>
           <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
-            <div className="card" style={{ borderRadius: 22, overflow: "hidden", boxShadow: "none" }}>
-              <div className="photo-ph">[FOTO DA QUADRA 1]</div>
-              <p style={{ padding: "16px 18px", fontSize: 16, fontWeight: 800 }}>{club?.courts.length ?? 3} quadras cobertas <span style={{ fontWeight: 500, color: "var(--muted)" }}>· piso sintético</span></p>
-            </div>
-            <div className="card" style={{ borderRadius: 22, overflow: "hidden", boxShadow: "none" }}>
-              <div className="photo-ph">[FOTO DA QUADRA 2]</div>
-              <p style={{ padding: "16px 18px", fontSize: 16, fontWeight: 800 }}>Iluminação para jogo noturno</p>
-            </div>
+            {club?.courts.map((c) => (
+              <div key={c.id} className="card" style={{ borderRadius: 22, overflow: "hidden", boxShadow: "none" }}>
+                {c.photo
+                  ? <img className="court-photo" src={c.photo.replace("-1600.webp", "-800.webp")} srcSet={photoSrcSet(c.photo)} sizes="(max-width: 900px) 100vw, 400px" alt={`Foto da ${c.name}`} loading="lazy" decoding="async" />
+                  : <div className="photo-ph court-photo">{c.name}</div>}
+                <p style={{ padding: "16px 18px", fontSize: 16, fontWeight: 800 }}>{c.name} <span style={{ fontWeight: 500, color: "var(--muted)" }}>· {c.description} · piso {c.surface ?? "sintético"}</span></p>
+              </div>
+            ))}
             <div className="card" style={{ borderRadius: 22, padding: 22, boxShadow: "none", display: "flex", flexDirection: "column", gap: 14 }}>
               <p style={{ fontSize: 16, fontWeight: 800 }}>Comodidades</p>
               <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 14, fontWeight: 600 }}>
@@ -228,6 +234,10 @@ function HomeMobile() {
         </p>
       </section>
 
+      {!!club?.gallery?.length && (
+        <div style={{ margin: "14px 20px 0" }}><CourtCarousel photos={club.gallery} compact caption="Nossas quadras" /></div>
+      )}
+
       <section aria-label="Escolha o dia" style={{ marginTop: 16, padding: "0 20px" }}>
         <DayButtons days={cal.data?.slice(0, 5)} value={date} today={club?.today} onChange={(d) => update({ date: d, start: null, courtId: null })} />
       </section>
@@ -244,7 +254,9 @@ function HomeMobile() {
             const free = av.data!.rows.flatMap((r) => r.slots.filter((s) => s.court_id === c.id && s.status === "free").map(() => r.time));
             return (
               <div key={c.id} className="card" style={{ borderRadius: 18, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 50, height: 50, borderRadius: 25, background: free.length ? "var(--ball)" : "var(--off-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 900, fontStyle: "italic", color: free.length ? "var(--ink)" : "var(--muted)", flex: "none" }}>{c.number}</div>
+                <div className="court-thumb" style={{ backgroundImage: club?.courts.find((k) => k.id === c.id)?.photo ? `url(${club.courts.find((k) => k.id === c.id)!.photo!.replace("-1600.webp", "-800.webp")})` : undefined }}>
+                  <span style={{ background: free.length ? "var(--ball)" : "var(--off-bg)", color: free.length ? "var(--ink)" : "var(--muted)" }}>{c.number}</span>
+                </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 14, fontWeight: 800 }}>{c.name} <span style={{ fontWeight: 500, color: "var(--muted)" }}>· {c.description}</span></p>
                   {free.length ? (

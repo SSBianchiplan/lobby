@@ -8,6 +8,14 @@ from ..domain import availability, calendar, load_settings, now_local
 
 router = APIRouter(prefix="/api", tags=["agenda"])
 
+# Fotos das quadras (frontend/public/quadras; cada uma também existe em -800.webp para telas pequenas).
+GALLERY = [
+    {"src": "/quadras/quadra-vidro-1600.webp", "alt": "Quadra com paredes de vidro e piso sintético azul, vista do fundo"},
+    {"src": "/quadras/quadra-lateral-1600.webp", "alt": "Quadra coberta vista pelo vidro lateral, com a rede ao fundo"},
+    {"src": "/quadras/quadra-rede-1600.webp", "alt": "Rede e piso azul vistos através da tela da quadra"},
+    {"src": "/quadras/quadra-fundo-1600.webp", "alt": "Quadra inteira vista de frente pelo vidro do fundo, com iluminação acesa"},
+]
+
 PUBLIC_KEYS = ("club_name", "address", "district", "maps_url", "email", "whatsapp", "amenities", "promo_text",
                "durations", "booking_horizon_days", "cancel_free_hours", "pending_hold_minutes", "max_players")
 
@@ -15,7 +23,7 @@ PUBLIC_KEYS = ("club_name", "address", "district", "maps_url", "email", "whatsap
 @router.get("/club")
 async def club(conn: Conn):
     s = await load_settings(conn)
-    courts = await conn.fetch("SELECT id, number, name, description, surface FROM courts WHERE active ORDER BY number")
+    courts = await conn.fetch("SELECT id, number, name, description, surface, photo FROM courts WHERE active ORDER BY number")
     hours = await conn.fetch("SELECT weekday, to_char(opens, 'HH24:MI') AS opens, to_char(closes, 'HH24:MI') AS closes FROM business_hours ORDER BY weekday, opens")
     prices = await conn.fetch(
         "SELECT label, weekdays, holidays, to_char(starts, 'HH24:MI') AS starts, to_char(ends, 'HH24:MI') AS ends, cents_per_hour, is_promo FROM price_rules ORDER BY priority DESC, starts"
@@ -25,6 +33,7 @@ async def club(conn: Conn):
         "courts": [dict(c) for c in courts],
         "hours": [dict(h) for h in hours],
         "prices": [dict(p) for p in prices],
+        "gallery": GALLERY,
         "today": now_local().date().isoformat(),
     }
 

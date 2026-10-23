@@ -5,6 +5,7 @@ import { Spinner } from "../../components/Layout";
 import { useToast } from "../../components/Toast";
 import { useAuth } from "../../auth";
 import { dayLabel } from "../../format";
+import CourtPhotos from "./CourtPhotos";
 import DemoPurge from "./DemoPurge";
 
 type Rule = { label: string; weekdays: number[]; holidays: boolean; starts: string; ends: string; cents_per_hour: number; priority: number; is_promo: boolean };
@@ -157,6 +158,7 @@ export default function Settings() {
           </ul>
         </section>
       </div>
+      <CourtPhotos />
       {user?.is_master && <DemoPurge />}
     </div>
   );

@@ -127,5 +127,6 @@ Mobile (≤ 760 px) usa o layout do app com barra inferior; acima disso, o layou
 
 ## Pendências do design
 
-Ficaram como placeholders, como no design: fotos das quadras (`[FOTO DA QUADRA 1/2]`) e telefone do WhatsApp
+Fotos das quadras: 4 fotos do clube em `frontend/public/quadras/` (WebP 800/1600), no carrossel com movimento da
+página inicial e uma por quadra (trocável em *Admin › Configurações › Fotos das quadras*). Falta o telefone do WhatsApp
 (configure em *Admin › Configurações*). Pix e cartão reais exigem um PSP/gateway; o ponto de integração é o webhook acima.

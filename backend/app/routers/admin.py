@@ -284,3 +284,17 @@ async def export_csv(_: Admin, conn: Conn, start: date | None = None, end: date 
                     f"{r['price_cents'] / 100:.2f}".replace(".", ",")])
     return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="reservas-{start}-{end}.csv"'})
+
+
+class CourtPhotoIn(BaseModel):
+    photo: str | None
+
+
+@router.put("/courts/{court_id}/photo")
+async def set_court_photo(court_id: int, body: CourtPhotoIn, _: Admin, conn: Conn):
+    from .club import GALLERY
+    if body.photo is not None and body.photo not in {g["src"] for g in GALLERY}:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Escolha uma das fotos da galeria.")
+    if await conn.execute("UPDATE courts SET photo = $2 WHERE id = $1", court_id, body.photo) == "UPDATE 0":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Quadra não encontrada.")
+    return {"ok": True}

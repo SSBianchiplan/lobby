@@ -26,6 +26,10 @@ PRICE_RULES = [  # valores de exemplo — ajuste no painel admin
     ("Promoção fim de semana e feriado", [6, 7], True, time(0), time(23, 59, 59), 10000, 10, True),
 ]
 
+COURT_PHOTOS = {  # mesma distribuição da migração 004; trocável no admin
+    1: "/quadras/quadra-vidro-1600.webp", 2: "/quadras/quadra-fundo-1600.webp", 3: "/quadras/quadra-lateral-1600.webp",
+}
+
 HOLIDAYS = [  # (mês, dia, nome, aberto)
     (11, 2, "Finados", True), (11, 15, "Proclamação da República", True), (11, 20, "Consciência Negra", True),
     (12, 25, "Natal", False), (1, 1, "Confraternização Universal", False), (2, 2, "N. Sra. dos Navegantes", True),
@@ -42,6 +46,8 @@ async def main(demo: bool) -> None:
             for n in (1, 2, 3):
                 await conn.execute(
                     "INSERT INTO courts (number, name) VALUES ($1, $2) ON CONFLICT (number) DO NOTHING", n, f"Quadra {n}")
+            for n, photo in COURT_PHOTOS.items():  # só preenche quem ainda não tem foto
+                await conn.execute("UPDATE courts SET photo = $2 WHERE number = $1 AND photo IS NULL", n, photo)
             if not await conn.fetchval("SELECT count(*) FROM business_hours"):
                 await conn.executemany("INSERT INTO business_hours (weekday, opens, closes) VALUES ($1, $2, $3)", HOURS)
             if not await conn.fetchval("SELECT count(*) FROM price_rules"):

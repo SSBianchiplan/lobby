@@ -40,3 +40,6 @@ export const PAY_LABEL: Record<string, string> = { pix: "Pix", card: "Cartão", 
 export const checkinUrl = (code: string) => `${location.origin}/checkin/${code}`;
 /** Extrai o código PL-XXXXX de um QR (link novo ou código puro dos QRs antigos). */
 export const parseCheckinCode = (text: string) => text.toUpperCase().match(/PL-[23456789A-HJ-NP-Z]{5}/)?.[0] ?? null;
+
+/** srcset das fotos das quadras (cada foto existe em -800.webp e -1600.webp). */
+export const photoSrcSet = (src: string) => `${src.replace("-1600.webp", "-800.webp")} 800w, ${src} 1600w`;

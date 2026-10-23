@@ -8,13 +8,14 @@ export type User = {
 };
 export type Session = { token: string; user: User };
 
-export type Court = { id: number; number: number; name: string; description: string; surface?: string };
+export type Court = { id: number; number: number; name: string; description: string; surface?: string; photo?: string | null };
+export type GalleryPhoto = { src: string; alt: string };
 
 export type Club = {
   club_name: string; address: string; district: string; maps_url: string; email: string; whatsapp: string;
   amenities: string[]; promo_text: string; durations: number[]; booking_horizon_days: number;
   cancel_free_hours: number; pending_hold_minutes: number; max_players: number; today: string;
-  courts: Court[]; hours: { weekday: number; opens: string; closes: string }[];
+  courts: Court[]; gallery: GalleryPhoto[]; hours: { weekday: number; opens: string; closes: string }[];
   prices: { label: string; weekdays: number[]; holidays: boolean; starts: string; ends: string; cents_per_hour: number; is_promo: boolean }[];
 };
 
