@@ -1,4 +1,4 @@
-export type User = { id: number; name: string; email: string; phone: string | null; role: "player" | "admin" };
+export type User = { id: number; name: string; email: string; phone: string | null; role: "player" | "admin"; is_master?: boolean };
 
 export type Court = { id: number; number: number; name: string; description: string; surface?: string };
 

@@ -198,12 +198,12 @@ async def create(conn: asyncpg.Connection, user: asyncpg.Record, court_id: int, 
             txid = row["code"].replace("-", "") + secrets.token_hex(4).upper()
             payload = pix.br_code(settings["pix_key"], q.cents, settings["pix_merchant_name"], settings["pix_merchant_city"], txid)
             await conn.execute(
-                "INSERT INTO payments (reservation_id, method, amount_cents, txid, pix_payload) VALUES ($1, 'pix', $2, $3, $4)",
+                "INSERT INTO payments (reservation_id, method, channel, amount_cents, txid, pix_payload) VALUES ($1, 'pix', 'pix_online', $2, $3, $4)",
                 row["id"], q.cents, txid, payload,
             )
         elif method == "card":
             await conn.execute(
-                "INSERT INTO payments (reservation_id, method, amount_cents, status, paid_at) VALUES ($1, 'card', $2, 'paid', now())",
+                "INSERT INTO payments (reservation_id, method, channel, amount_cents, status, paid_at) VALUES ($1, 'card', 'cartao_online', $2, 'paid', now())",
                 row["id"], q.cents,
             )
         if st == "confirmed":
@@ -213,23 +213,37 @@ async def create(conn: asyncpg.Connection, user: asyncpg.Record, court_id: int, 
     return await serialize(conn, await fetch(conn, row["code"]), user, settings)
 
 
-async def mark_paid(conn: asyncpg.Connection, r: dict, txid: str | None = None) -> None:
+async def mark_paid(conn: asyncpg.Connection, r: dict, txid: str | None = None,
+                    channel: str | None = None, admin_id: int | None = None, note: str | None = None) -> None:
+    """Confirma o pagamento. Com admin_id é lançamento de balcão (entra no caixa do dia e é travado no fechamento)."""
+    try:
+        await _mark_paid(conn, r, txid, channel, admin_id, note)
+    except asyncpg.CheckViolationError as e:
+        if e.constraint_name == "payments_closed_day":
+            raise conflict("O caixa de hoje já foi fechado. Reabra o fechamento para lançar o recebimento.")
+        raise
+
+
+async def _mark_paid(conn: asyncpg.Connection, r: dict, txid: str | None, channel: str | None,
+                     admin_id: int | None, note: str | None) -> None:
     async with conn.transaction():
         if r["status"] == "pending":
             if r["hold_expires_at"] and r["hold_expires_at"] < now_local():
                 raise conflict("O prazo de pagamento expirou. Faça uma nova reserva.")
             await conn.execute("UPDATE reservations SET status = 'confirmed', payment_status = 'paid', hold_expires_at = NULL WHERE id = $1", r["id"])
             await conn.execute(
-                "UPDATE payments SET status = 'paid', paid_at = now() WHERE reservation_id = $1 AND status = 'pending' AND ($2::text IS NULL OR txid = $2)",
-                r["id"], txid,
+                """UPDATE payments SET status = 'paid', paid_at = now(), channel = coalesce($3, channel), received_by = $4, note = $5
+                   WHERE reservation_id = $1 AND status = 'pending' AND ($2::text IS NULL OR txid = $2)""",
+                r["id"], txid, channel, admin_id, note,
             )
             await notify_players(conn, r["id"], "confirmed", "Pagamento confirmado",
                                  f"Reserva {r['code']} confirmada · {r['court_name']} · {r['starts_at']:%d/%m %H:%M}", "/reservas")
         elif r["payment_status"] == "onsite" and r["status"] in ("confirmed", "checked_in", "completed"):
             await conn.execute("UPDATE reservations SET payment_status = 'paid' WHERE id = $1", r["id"])
             await conn.execute(
-                "INSERT INTO payments (reservation_id, method, amount_cents, status, paid_at) VALUES ($1, 'onsite', $2, 'paid', now())",
-                r["id"], r["price_cents"],
+                """INSERT INTO payments (reservation_id, method, channel, amount_cents, status, paid_at, received_by, note)
+                   VALUES ($1, 'onsite', $2, $3, 'paid', now(), $4, $5)""",
+                r["id"], channel or "dinheiro", r["price_cents"], admin_id, note,
             )
         else:
             raise conflict("Essa reserva não tem pagamento pendente.")
@@ -254,7 +268,9 @@ async def cancel(conn: asyncpg.Connection, r: dict, actor: asyncpg.Record, reaso
             r["id"], new_pay, reason or ("Cancelada pela administração" if is_admin and r["user_id"] != actor["id"] else None),
         )
         await conn.execute(
-            "UPDATE payments SET status = CASE WHEN status = 'paid' AND $2 THEN 'refunded' WHEN status = 'pending' THEN 'void' ELSE status END WHERE reservation_id = $1",
+            """UPDATE payments SET status = CASE WHEN status = 'paid' AND $2 THEN 'refunded' WHEN status = 'pending' THEN 'void' ELSE status END,
+                                  refunded_at = CASE WHEN status = 'paid' AND $2 THEN now() ELSE refunded_at END
+               WHERE reservation_id = $1""",
             r["id"], refund,
         )
         await notify_players(conn, r["id"], "cancelled", "Reserva cancelada",

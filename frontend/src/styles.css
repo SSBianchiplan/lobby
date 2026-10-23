@@ -206,7 +206,7 @@ h1, h2, h3, p { margin: 0; }
 .table thead tr { text-align: left; font-size: 12px; color: var(--muted); }
 .table th { padding: 10px 12px; font-weight: 700; }
 .table td { padding: 12px; font-weight: 600; border-top: 1px solid var(--line); }
-.table-scroll { overflow-x: auto; }
+.table-scroll { overflow-x: auto; position: relative; } /* contém os .sr-only absolutos dos cabeçalhos */
 
 /* QR / mapa / placeholders */
 .qr-box { background: #fff; border-radius: 20px; padding: 10px; display: flex; align-items: center; justify-content: center; flex: none; }
@@ -232,7 +232,7 @@ h1, h2, h3, p { margin: 0; }
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; }
 .kpi { background: #fff; border-radius: 20px; padding: 18px 20px; box-shadow: var(--shadow-card); }
 .kpi .label { font-size: 12px; font-weight: 800; color: var(--muted); }
-.kpi .value { margin-top: 6px; font-size: 30px; font-weight: 900; font-style: italic; }
+.kpi .value { margin-top: 6px; font-size: clamp(22px, 2.1vw, 30px); white-space: nowrap; font-weight: 900; font-style: italic; }
 .kpi .sub { margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .bar { height: 10px; border-radius: 5px; background: var(--off-bg); overflow: hidden; }
 .bar > i { display: block; height: 100%; background: var(--red); border-radius: 5px; }
@@ -241,6 +241,31 @@ h1, h2, h3, p { margin: 0; }
 .admin-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .admin-tabs a { height: 40px; padding: 0 16px; border-radius: 20px; background: #fff; color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 700; display: flex; align-items: center; }
 .admin-tabs a.active { background: var(--ink); color: #fff; }
+/* Disponibilidade: grade quadras × fatias de 30 min */
+.occ-grid { display: grid; gap: 2px 6px; font-size: 12px; font-weight: 700; min-width: 520px; }
+.occ-head { position: sticky; top: 0; background: #fff; padding: 6px 4px 8px; font-size: 14px; font-weight: 800; display: flex; flex-direction: column; }
+.occ-head small { font-size: 11px; font-weight: 600; color: var(--muted); }
+.occ-time { font-size: 11px; color: var(--muted); transform: translateY(-7px); }
+.occ-cell { height: 22px; border-radius: 6px; padding: 0 8px; display: flex; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.occ-cell.cont { border-top-left-radius: 0; border-top-right-radius: 0; margin-top: -2px; height: 24px; }
+.occ-free { background: #fff; border: 1px dashed var(--border-strong); }
+.occ-res { background: var(--ok-bg); color: var(--ok-ink); }
+.occ-open { background: var(--pink); color: var(--red-deep); }
+.occ-pending { background: var(--cream); color: var(--cream-ink); }
+.occ-block { background: repeating-linear-gradient(135deg, var(--off-bg) 0 6px, #e3dddd 6px 12px); color: #5C5658; }
+.occ-past { background: var(--off-bg); opacity: 0.5; }
+.occ-break { grid-column: 1 / -1; margin: 6px 0; padding: 4px 10px; border-radius: 8px; background: var(--bg); color: var(--muted); font-size: 11px; font-weight: 800; text-align: center; }
+.occ-legend { list-style: none; margin: 0; padding: 0; display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; font-weight: 700; color: var(--muted); }
+.occ-legend li { display: flex; align-items: center; gap: 6px; }
+.occ-legend i { width: 16px; height: 12px; border-radius: 4px; display: inline-block; }
+.print-only { display: none; }
+@media print {
+  .site-header, .bottom-nav, .m-header, .no-print, .toast { display: none !important; }
+  .print-only { display: block; }
+  body, html { background: #fff; }
+  .card, .kpi { box-shadow: none !important; border: 1px solid var(--line); break-inside: avoid; }
+  .table-scroll { overflow: visible; }
+}
 .timeline { position: relative; display: grid; gap: 8px; }
 .res-block { border-radius: 12px; padding: 8px 10px; font-size: 12px; font-weight: 700; background: var(--pink); color: var(--red-deep); border: 0; text-align: left; width: 100%; }
 
@@ -253,6 +278,8 @@ h1, h2, h3, p { margin: 0; }
   .page { padding-top: 16px; padding-bottom: 24px; }
   .site-header, .site-footer.web-only { display: none; }
   .hide-mobile { display: none !important; }
+  .admin-tabs { flex-wrap: nowrap; overflow-x: auto; width: 100%; padding-bottom: 4px; scrollbar-width: none; }
+  .admin-tabs a { flex: none; }
 }
 @media (min-width: 761px) {
   .bottom-nav, .m-header, .hide-desktop { display: none !important; }

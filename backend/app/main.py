@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import mimetypes
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,9 +11,10 @@ from fastapi.staticfiles import StaticFiles
 
 from . import db, jobs
 from .config import get_settings
-from .routers import admin, auth, bookings, club
+from .routers import admin, auth, backoffice, bookings, club
 
 logging.basicConfig(level=logging.INFO)
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 
 
@@ -33,7 +35,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Padel Lobby API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins, allow_methods=["*"], allow_headers=["*"])
 
-for r in (auth.router, club.router, bookings.router, admin.router):
+for r in (auth.router, club.router, bookings.router, admin.router, backoffice.router):
     app.include_router(r)
 
 
@@ -52,7 +54,8 @@ if DIST.exists():
     async def spa(path: str, request: Request):
         if path.startswith("api/"):
             return JSONResponse({"detail": "Not Found"}, status_code=404)
-        file = DIST / path
-        if path and file.is_file():
+        # resolve() + is_relative_to: "%2e%2e/" chega decodificado e escaparia de dist/ (ex.: backend/.env)
+        file = (DIST / path).resolve()
+        if path and file.is_relative_to(DIST) and file.is_file():
             return FileResponse(file)
         return FileResponse(DIST / "index.html")

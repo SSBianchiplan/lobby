@@ -28,7 +28,9 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 
 Contas demo: `jogador@padellobby.com.br` / `jogador123` e `admin@padellobby.com.br` / `admin123`.
 
-Produção: `JWT_SECRET=... PIX_WEBHOOK_SECRET=... docker compose up --build` (a API serve o build do React em `:8000`).
+Produção no hub: **https://lobby.gplansis.com** (vps2, venv + systemd + Caddy) — `bash deploy/vps/enviar.sh`
+envia, migra, garante o admin master e reinicia. Fora do hub: `JWT_SECRET=... PIX_WEBHOOK_SECRET=... docker compose up --build`
+(a API serve o build do React em `:8000`).
 
 Testes: `cd backend && .venv/bin/pytest` (usa o banco `padel_lobby_test`).
 
@@ -41,6 +43,36 @@ Testes: `cd backend && .venv/bin/pytest` (usa o banco `padel_lobby_test`).
 | 03 · Confirmar e pagar | `/agenda/confirmar` (mobile) · resumo lateral (web) | Jogadores, Pix/cartão/no local, preço por jogador |
 | 04 · Minhas reservas / Web 03 | `/reservas` | Próxima reserva com QR de check-in, histórico, filtro, "Repetir" |
 | (novas) | `/reservas/:code`, `/convite/:token`, `/entrar`, `/cadastro`, `/perfil`, `/admin` | Pagamento Pix, convite, conta, painel |
+
+### Administração (`/admin`)
+
+| Aba | Rota | O que faz |
+|---|---|---|
+| Painel | `/admin` | Receita, ocupação, receita por dia, por quadra, mapa de calor, ranking |
+| Agenda do dia | `/admin/agenda` | Reservas do dia, check-in por código, bloqueios |
+| Agendamentos | `/admin/agendamentos` | Todas as reservas por período, quadra, situação, pagamento e forma; busca; totais; CSV |
+| Disponibilidade | `/admin/disponibilidade` | Grade quadras × fatias de 30 min (1, 3 ou 7 dias): livre, pago, a receber, aguardando Pix, bloqueado |
+| Pagamentos | `/admin/pagamentos` | A receber (com "Receber" escolhendo dinheiro, Pix no balcão, débito ou crédito), movimento de recebimentos e estornos, totais por forma, CSV |
+| Fechamento | `/admin/fechamento` | Caixa do dia: recebido por forma, estornos, dinheiro esperado × contado (sobra/falta), locações do dia, fechar/reabrir com motivo, histórico, dias pendentes, impressão |
+| Relatórios | `/admin/relatorios` | Locações por dia, quadra, dia da semana, horário, cliente, forma e duração; ocupação, faturamento, ticket médio; CSV por agrupamento; impressão |
+| Usuários | `/admin/usuarios` | Clientes e administradores com histórico de locação; papéis só pelo admin master |
+| Configurações | `/admin/config` | Preços, feriados e regras |
+
+**Admin master** (`PADEL_MASTER_ADMINS`, padrão `stefanosbianchi@gmail.com`): sempre administrador, não pode ser
+rebaixado e é o único que promove/rebaixa outros admins. Como o cadastro público não verifica e-mail, a conta master
+não pode ser criada pela tela de cadastro — nasce no servidor com `python -m app.cli master` (o deploy já roda),
+que imprime a senha aleatória uma única vez.
+
+**Fechamento de caixa**: cada lançamento em `payments` tem canal (`pix_online`, `cartao_online`, `dinheiro`,
+`pix_balcao`, `debito`, `credito`), quem lançou (`received_by`, só balcão) e data de estorno. Fechado o dia, um
+trigger no banco recusa recebimentos de balcão nele; Pix e cartão online nunca são barrados (o dinheiro já entrou) e
+aparecem como "movimento após o fechamento". Reabrir exige motivo e fica no histórico do fechamento.
+
+### PWA
+
+Instalável no celular ("Adicionar à tela inicial"): `manifest.webmanifest`, ícones normais e *maskable*,
+`apple-touch-icon`, favicon e um service worker (`public/sw.js`) que guarda a casca do app para abrir sem rede.
+A API nunca é cacheada.
 
 Mobile (≤ 760 px) usa o layout do app com barra inferior; acima disso, o layout web.
 

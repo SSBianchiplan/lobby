@@ -5,6 +5,7 @@ import jwt
 from fastapi import Depends, HTTPException, Request, status
 
 from . import db
+from .config import get_settings
 from .security import decode_token
 
 
@@ -44,6 +45,13 @@ async def admin_user(user: Annotated[asyncpg.Record, Depends(current_user)]) -> 
     return user
 
 
+async def master_user(user: Annotated[asyncpg.Record, Depends(admin_user)]) -> asyncpg.Record:
+    if not get_settings().is_master(user["email"]):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Só o admin master pode fazer isso.")
+    return user
+
+
 User = Annotated[asyncpg.Record, Depends(current_user)]
 MaybeUser = Annotated[asyncpg.Record | None, Depends(optional_user)]
 Admin = Annotated[asyncpg.Record, Depends(admin_user)]
+Master = Annotated[asyncpg.Record, Depends(master_user)]

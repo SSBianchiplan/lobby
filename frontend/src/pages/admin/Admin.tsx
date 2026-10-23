@@ -4,9 +4,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, type Reservation } from "../../api";
 import { BottomNav, SiteHeader, Spinner } from "../../components/Layout";
 import { useToast } from "../../components/Toast";
-import { dayLabel, isoDay, money, PAY_LABEL, STATUS_LABEL } from "../../format";
+import { dayLabel, isoDay, money } from "../../format";
 import { useClub } from "../../hooks";
+import Bookings from "./Bookings";
+import ClosingPage from "./Closing";
+import Occupancy from "./Occupancy";
+import Payments from "./Payments";
+import Reports from "./Reports";
 import Settings from "./Settings";
+import { downloadCsv, pct, ResTable, useAdminActions } from "./shared";
+import Users from "./Users";
+
+const TABS: [string, string][] = [
+  ["/admin", "Painel"], ["/admin/agenda", "Agenda do dia"], ["/admin/agendamentos", "Agendamentos"],
+  ["/admin/disponibilidade", "Disponibilidade"], ["/admin/pagamentos", "Pagamentos"], ["/admin/fechamento", "Fechamento"],
+  ["/admin/relatorios", "Relatórios"], ["/admin/usuarios", "Usuários"], ["/admin/config", "Configurações"],
+];
 
 export default function Admin() {
   return (
@@ -15,18 +28,21 @@ export default function Admin() {
       <main className="container page">
         <div className="between">
           <h1 className="italic-title" style={{ fontSize: 36 }}>Administração <span className="accent">Padel Lobby</span></h1>
-          <nav className="admin-tabs" aria-label="Administração">
-            <NavLink end to="/admin" className={({ isActive }) => (isActive ? "active" : "")}>Painel</NavLink>
-            <NavLink to="/admin/agenda" className={({ isActive }) => (isActive ? "active" : "")}>Agenda do dia</NavLink>
-            <NavLink to="/admin/reservas" className={({ isActive }) => (isActive ? "active" : "")}>Reservas</NavLink>
-            <NavLink to="/admin/config" className={({ isActive }) => (isActive ? "active" : "")}>Configurações</NavLink>
+          <nav className="admin-tabs no-print" aria-label="Administração">
+            {TABS.map(([to, label]) => <NavLink key={to} end={to === "/admin"} to={to} className={({ isActive }) => (isActive ? "active" : "")}>{label}</NavLink>)}
           </nav>
         </div>
         <div style={{ marginTop: 24 }}>
           <Routes>
             <Route index element={<Dashboard />} />
             <Route path="agenda" element={<DaySchedule />} />
-            <Route path="reservas" element={<Search />} />
+            <Route path="agendamentos" element={<Bookings />} />
+            <Route path="reservas" element={<Bookings />} />
+            <Route path="disponibilidade" element={<Occupancy />} />
+            <Route path="pagamentos" element={<Payments />} />
+            <Route path="fechamento" element={<ClosingPage />} />
+            <Route path="relatorios" element={<Reports />} />
+            <Route path="usuarios" element={<Users />} />
             <Route path="config" element={<Settings />} />
           </Routes>
         </div>
@@ -44,8 +60,6 @@ type Dash = {
   daily: { day: string; bookings: number; revenue_cents: number }[];
   top_players: { name: string; bookings: number; minutes: number }[];
 };
-
-const pct = (v: number) => `${(v * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 
 function monthRange(offset: number) {
   const d = new Date();
@@ -72,15 +86,7 @@ function Dashboard() {
           <button aria-pressed="true">{range.label}</button>
           <button onClick={() => setOffset(offset + 1)} aria-label="Próximo mês">→</button>
         </div>
-        <a className="btn btn-outline btn-sm" href={`/api/admin/reports/reservations.csv?start=${range.start}&end=${range.end}`}
-          onClick={async (e) => {
-            // download autenticado
-            e.preventDefault();
-            const csv = await api<string>(`/api/admin/reports/reservations.csv?start=${range.start}&end=${range.end}`);
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-            a.download = `reservas-${range.start}.csv`; a.click();
-          }}>Exportar CSV</a>
+        <button className="btn btn-outline btn-sm" onClick={() => downloadCsv(`/api/admin/reports/reservations.csv?start=${range.start}&end=${range.end}`, `reservas-${range.start}.csv`)}>Exportar CSV</button>
       </div>
       {!d ? <Spinner /> : (
         <>
@@ -141,48 +147,6 @@ function Dashboard() {
           </section>
         </>
       )}
-    </div>
-  );
-}
-
-function useAdminActions(onChange: () => void) {
-  const toast = useToast();
-  const err = (e: unknown) => toast(e instanceof ApiError ? e.message : "Falhou.");
-  const ok = (m: string) => () => { onChange(); toast(m); };
-  return {
-    checkin: useMutation({ mutationFn: (code: string) => api<Reservation>("/api/admin/checkin", { method: "POST", json: { code } }), onSuccess: ok("Check-in registrado"), onError: err }),
-    paid: useMutation({ mutationFn: (code: string) => api(`/api/admin/reservations/${code}/mark-paid`, { method: "POST" }), onSuccess: ok("Pagamento registrado"), onError: err }),
-    cancel: useMutation({ mutationFn: (code: string) => api(`/api/reservations/${code}/cancel`, { method: "POST", json: { reason: "Cancelada pela administração" } }), onSuccess: ok("Reserva cancelada e estornada"), onError: err }),
-  };
-}
-
-function ReservationRow({ r, actions }: { r: Reservation; actions: ReturnType<typeof useAdminActions> }) {
-  const st = STATUS_LABEL[r.status]!;
-  return (
-    <tr>
-      <td style={{ fontWeight: 800 }}>{r.start}–{r.end}<div className="muted" style={{ fontSize: 12 }}>{dayLabel(r.date)}</div></td>
-      <td>{r.court.name}</td>
-      <td>{r.owner?.name}<div className="muted" style={{ fontSize: 12 }}>{r.owner?.phone || r.owner?.email} · {r.players.length} jog.</div></td>
-      <td><code style={{ fontWeight: 800 }}>{r.code}</code></td>
-      <td>{money(r.price_cents)}<div className="muted" style={{ fontSize: 12 }}>{PAY_LABEL[r.payment_method]} · {r.payment_status}</div></td>
-      <td><span className={`badge ${st.cls}`}>{st.text}</span></td>
-      <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
-        {r.status === "confirmed" && <button className="btn btn-dark btn-sm" onClick={() => actions.checkin.mutate(r.code)}>Check-in</button>}{" "}
-        {(r.payment_status === "onsite" || r.status === "pending") && <button className="btn btn-soft btn-sm" onClick={() => actions.paid.mutate(r.code)}>Recebido</button>}{" "}
-        {r.can_cancel && <button className="btn btn-outline btn-sm" onClick={() => window.confirm(`Cancelar ${r.code} e estornar?`) && actions.cancel.mutate(r.code)}>Cancelar</button>}
-      </td>
-    </tr>
-  );
-}
-
-function ResTable({ items, actions }: { items: Reservation[]; actions: ReturnType<typeof useAdminActions> }) {
-  if (!items.length) return <p className="empty">Nenhuma reserva.</p>;
-  return (
-    <div className="table-scroll">
-      <table className="table" style={{ minWidth: 900 }}>
-        <thead><tr><th>HORÁRIO</th><th>QUADRA</th><th>CLIENTE</th><th>CÓDIGO</th><th>VALOR</th><th>SITUAÇÃO</th><th><span className="sr-only">Ações</span></th></tr></thead>
-        <tbody>{items.map((r) => <ReservationRow key={r.code} r={r} actions={actions} />)}</tbody>
-      </table>
     </div>
   );
 }
@@ -251,32 +215,5 @@ function DaySchedule() {
         </ul>
       </section>
     </div>
-  );
-}
-
-function Search() {
-  const [term, setTerm] = useState("");
-  const [status, setStatus] = useState("");
-  const qc = useQueryClient();
-  const q = useQuery({
-    queryKey: ["admin", "search", term, status],
-    queryFn: () => api<Reservation[]>(`/api/admin/reservations?q=${encodeURIComponent(term)}${status ? `&status=${status}` : ""}`),
-  });
-  const actions = useAdminActions(() => qc.invalidateQueries({ queryKey: ["admin"] }));
-  return (
-    <section className="card card-pad" style={{ boxShadow: "none" }}>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-        <label className="field" style={{ flex: "2 1 260px" }}>BUSCAR
-          <input className="input" placeholder="Código, nome ou e-mail" value={term} onChange={(e) => setTerm(e.target.value)} />
-        </label>
-        <label className="field" style={{ flex: "1 1 180px" }}>SITUAÇÃO
-          <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">Todas</option>
-            {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v.text}</option>)}
-          </select>
-        </label>
-      </div>
-      {q.isLoading ? <Spinner /> : <ResTable items={q.data ?? []} actions={actions} />}
-    </section>
   );
 }

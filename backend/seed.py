@@ -140,6 +140,15 @@ async def seed_demo(conn) -> None:
                         pass
                 h += 1
 
+    # Lançamentos financeiros das reservas pagas (o caixa e os relatórios leem payments).
+    await conn.execute(
+        """INSERT INTO payments (reservation_id, method, amount_cents, status, paid_at, refunded_at, channel)
+           SELECT r.id, r.payment_method, r.price_cents, CASE r.payment_status WHEN 'refunded' THEN 'refunded' ELSE 'paid' END,
+                  least(r.created_at, lower(r.period)), CASE WHEN r.payment_status = 'refunded' THEN r.cancelled_at END,
+                  CASE r.payment_method WHEN 'pix' THEN 'pix_online' WHEN 'card' THEN 'cartao_online' ELSE 'dinheiro' END
+           FROM reservations r
+           WHERE r.payment_status IN ('paid', 'refunded')
+             AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.reservation_id = r.id AND p.status IN ('paid', 'refunded'))""")
     await conn.execute(
         "INSERT INTO notifications (user_id, kind, title, body, link) VALUES ($1, 'welcome', 'Bem-vindo ao Padel Lobby', 'Reserve sua quadra em segundos e convide a galera pelo WhatsApp.', '/agenda')", me)
     print(f"demo: {count} reservas geradas")

@@ -2,6 +2,7 @@ import asyncpg
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 
+from ..config import get_settings
 from ..deps import Conn, User
 from ..security import create_token, hash_password, verify_password
 
@@ -27,11 +28,15 @@ class ProfileIn(BaseModel):
 
 
 def _user_out(u) -> dict:
-    return {"id": u["id"], "name": u["name"], "email": u["email"], "phone": u["phone"], "role": u["role"]}
+    return {"id": u["id"], "name": u["name"], "email": u["email"], "phone": u["phone"], "role": u["role"],
+            "is_master": get_settings().is_master(u["email"])}
 
 
 @router.post("/auth/register", status_code=201)
 async def register(body: RegisterIn, conn: Conn):
+    if get_settings().is_master(body.email):
+        # e-mail não é verificado no cadastro: a conta master só nasce pelo servidor (python -m app.cli master)
+        raise HTTPException(status.HTTP_409_CONFLICT, "Já existe uma conta com esse e-mail.")
     try:
         u = await conn.fetchrow(
             "INSERT INTO users (name, email, phone, password_hash) VALUES ($1, $2, $3, $4) RETURNING id, name, email, phone, role",

@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     dev_mode: bool = True
     cors_origins: list[str] = ["http://localhost:5173"]
     jobs_interval_seconds: int = 30
+    # Admin master: sempre administrador, não pode ser rebaixado e é quem promove/rebaixa os demais.
+    master_admins: list[str] = ["stefanosbianchi@gmail.com"]
+
+    def is_master(self, email: str) -> bool:
+        return email.lower() in {m.lower() for m in self.master_admins}
 
     @property
     def tz(self) -> ZoneInfo:

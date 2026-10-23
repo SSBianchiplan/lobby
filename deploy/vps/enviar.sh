@@ -79,6 +79,8 @@ PY
 else
   sudo -u $APP $DIR/.venv/bin/python seed.py --no-demo >/dev/null
 fi
+# Admin master (PADEL_MASTER_ADMINS): cria com senha aleatória na primeira vez, promove se preciso.
+sudo -u $APP $DIR/.venv/bin/python -m app.cli master
 REMOTO
 
   echo "▶ systemd + caddy"

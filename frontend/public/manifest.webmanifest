@@ -1,0 +1,24 @@
+{
+  "id": "/",
+  "name": "Padel Lobby — Reservas",
+  "short_name": "Padel Lobby",
+  "description": "Reserve quadras de padel no Padel Lobby, em Rio Grande (RS).",
+  "lang": "pt-BR",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F7F5F5",
+  "theme_color": "#C8102E",
+  "categories": ["sports", "lifestyle"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Reservar quadra", "url": "/agenda", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Minhas reservas", "url": "/reservas", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

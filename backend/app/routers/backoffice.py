@@ -1,0 +1,456 @@
+"""Retaguarda do admin: agendamentos, mapa de disponibilidade, pagamentos, fechamento diário e relatórios de locação."""
+
+import csv
+import io
+from datetime import date, time, timedelta
+from typing import Literal
+
+import asyncpg
+from fastapi import APIRouter, HTTPException, Query, Response, status
+from pydantic import BaseModel, Field
+
+from .. import reservations as svc
+from ..config import get_settings
+from ..deps import Admin, Conn, Master
+from ..domain import WEEKDAY_SHORT, _m, day_infos, load_settings, local_dt, now_local
+
+router = APIRouter(prefix="/api/admin", tags=["retaguarda"])
+
+PLAYED = ("confirmed", "checked_in", "completed")
+CHANNELS = ("pix_online", "cartao_online", "dinheiro", "pix_balcao", "debito", "credito")
+Channel = Literal["pix_online", "cartao_online", "dinheiro", "pix_balcao", "debito", "credito"]
+
+
+def _period(start: date | None, end: date | None, max_days: int = 400) -> tuple[date, date]:
+    """[start, end) — padrão: mês corrente."""
+    today = now_local().date()
+    start = start or today.replace(day=1)
+    end = end or (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    if end <= start or (end - start).days > max_days:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Período inválido.")
+    return start, end
+
+
+def _bounds(start: date, end: date):
+    return local_dt(start, time(0)), local_dt(end, time(0))
+
+
+def _csv(name: str, header: list[str], rows: list[list]) -> Response:
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=";")
+    w.writerow(header)
+    w.writerows(rows)
+    return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}.csv"'})
+
+
+def _brl(cents: int) -> str:
+    return f"{cents / 100:.2f}".replace(".", ",")
+
+
+# ── Agendamentos ────────────────────────────────────────────────────────────
+
+BOOKING_FILTER = """
+    WHERE lower(r.period) >= $1 AND lower(r.period) < $2
+      AND ($3::smallint IS NULL OR r.court_id = $3)
+      AND ($4::text IS NULL OR r.status = $4)
+      AND ($5::text IS NULL OR r.payment_status = $5)
+      AND ($6::text IS NULL OR r.payment_method = $6)
+      AND ($7 = '' OR r.code ILIKE '%' || $7 || '%' OR u.name ILIKE '%' || $7 || '%'
+           OR u.email::text ILIKE '%' || $7 || '%' OR coalesce(u.phone, '') ILIKE '%' || $7 || '%')
+"""
+
+
+@router.get("/bookings")
+async def bookings(
+    admin: Admin, conn: Conn,
+    start: date | None = None, end: date | None = None, court_id: int | None = None,
+    status_: str | None = Query(None, alias="status"), payment_status: str | None = None,
+    method: str | None = None, q: str = "",
+    order: Literal["asc", "desc"] = "asc", offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200),
+):
+    s, e = _bounds(*_period(start, end))
+    args = (s, e, court_id, status_ or None, payment_status or None, method or None, q.strip())
+    totals = await conn.fetchrow(
+        f"""SELECT count(*) AS n,
+                   coalesce(sum(r.price_cents) FILTER (WHERE r.status IN {PLAYED}), 0) AS value_cents,
+                   coalesce(sum(r.price_cents) FILTER (WHERE r.payment_status = 'paid'), 0) AS paid_cents,
+                   coalesce(sum(r.price_cents) FILTER (WHERE r.payment_status IN ('onsite', 'pending') AND r.status IN {PLAYED + ('pending',)}), 0) AS open_cents,
+                   coalesce(sum(r.duration_min) FILTER (WHERE r.status IN {PLAYED}), 0) AS minutes
+            FROM reservations r JOIN users u ON u.id = r.user_id {BOOKING_FILTER}""",
+        *args,
+    )
+    rows = await conn.fetch(
+        svc.SELECT_RESERVATION + BOOKING_FILTER + f" ORDER BY lower(r.period) {order}, c.number OFFSET $8 LIMIT $9",
+        *args, offset, limit,
+    )
+    settings = await load_settings(conn)
+    return {**dict(totals), "items": [await svc.serialize(conn, r, admin, settings) for r in rows]}
+
+
+# ── Mapa de disponibilidade (quadras × horários, vários dias) ──────────────
+
+@router.get("/occupancy")
+async def occupancy(_: Admin, conn: Conn, start: date | None = None, days: int = Query(1, ge=1, le=7)):
+    """Grade em fatias de 30 min: livre, reservado (com quem/situação), bloqueado ou passado."""
+    start = start or now_local().date()
+    courts = await conn.fetch("SELECT id, number, name FROM courts WHERE active ORDER BY number")
+    infos = await day_infos(conn, start, days)
+    s, e = _bounds(start, start + timedelta(days=days))
+    res = await conn.fetch(
+        svc.SELECT_RESERVATION
+        + """ WHERE r.period && tstzrange($1, $2) AND r.status IN ('pending', 'confirmed', 'checked_in', 'completed')
+              AND NOT (r.status = 'pending' AND r.hold_expires_at < now())""",
+        s, e,
+    )
+    blocks = await conn.fetch(
+        "SELECT id, court_id, lower(period) AS s, upper(period) AS e, reason FROM blocks WHERE period && tstzrange($1, $2)", s, e)
+    now = now_local()
+    out_days = []
+    for info in infos:
+        day = {"date": info.day.isoformat(), "weekday": WEEKDAY_SHORT[info.day.weekday()], "holiday": info.holiday,
+               "open": info.open, "times": [], "cells": {c["id"]: [] for c in courts},
+               "free_minutes": {c["id"]: 0 for c in courts}, "booked_minutes": {c["id"]: 0 for c in courts}}
+        for o, c_ in info.intervals:
+            for minute in range(_m(o), _m(c_), 30):
+                t = time(minute // 60, minute % 60)
+                a = local_dt(info.day, t)
+                b = a + timedelta(minutes=30)
+                day["times"].append(t.strftime("%H:%M"))
+                for c in courts:
+                    cell: dict = {"s": "free"}
+                    r = next((r for r in res if r["court_id"] == c["id"] and r["starts_at"] < b and a < r["ends_at"]), None)
+                    blk = next((x for x in blocks if x["court_id"] in (None, c["id"]) and x["s"] < b and a < x["e"]), None)
+                    if r is not None:
+                        cell = {"s": "res", "code": r["code"], "status": r["status"], "pay": r["payment_status"],
+                                "who": r["owner_name"], "first": r["starts_at"] >= a}
+                        day["booked_minutes"][c["id"]] += 30
+                    elif blk is not None:
+                        cell = {"s": "block", "reason": blk["reason"], "id": blk["id"]}
+                    elif b <= now:
+                        cell = {"s": "past"}
+                    else:
+                        day["free_minutes"][c["id"]] += 30
+                    day["cells"][c["id"]].append(cell)
+        out_days.append(day)
+    return {"courts": [dict(c) for c in courts], "days": out_days}
+
+
+# ── Pagamentos ──────────────────────────────────────────────────────────────
+
+@router.get("/payments")
+async def payments(
+    _: Admin, conn: Conn, start: date | None = None, end: date | None = None,
+    channel: str | None = None, kind: Literal["received", "refunded", "all"] = "all",
+):
+    """Movimento financeiro do período: recebimentos (paid_at) e estornos (refunded_at)."""
+    s, e = _bounds(*_period(start, end))
+    rows = await conn.fetch(
+        """
+        SELECT * FROM (
+            SELECT 'received' AS kind, p.paid_at AS at, p.amount_cents, p.id, p.channel, p.note, p.received_by,
+                   r.code, c.name AS court, u.name AS client, lower(r.period) AS starts_at, a.name AS admin
+            FROM payments p JOIN reservations r ON r.id = p.reservation_id JOIN courts c ON c.id = r.court_id
+                 JOIN users u ON u.id = r.user_id LEFT JOIN users a ON a.id = p.received_by
+            WHERE p.status IN ('paid', 'refunded') AND p.paid_at >= $1 AND p.paid_at < $2
+            UNION ALL
+            SELECT 'refunded', p.refunded_at, -p.amount_cents, p.id, p.channel, r.cancel_reason, p.received_by,
+                   r.code, c.name, u.name, lower(r.period), a.name
+            FROM payments p JOIN reservations r ON r.id = p.reservation_id JOIN courts c ON c.id = r.court_id
+                 JOIN users u ON u.id = r.user_id LEFT JOIN users a ON a.id = p.received_by
+            WHERE p.status = 'refunded' AND p.refunded_at >= $1 AND p.refunded_at < $2
+        ) m
+        WHERE ($3::text IS NULL OR channel = $3) AND ($4 = 'all' OR kind = $4)
+        ORDER BY at DESC
+        """,
+        s, e, channel or None, kind,
+    )
+    tz = get_settings().tz
+    items = [{**dict(r), "at": r["at"].astimezone(tz).isoformat(), "starts_at": r["starts_at"].astimezone(tz).isoformat(),
+              "manual": r["received_by"] is not None} for r in rows]
+    by_channel: dict[str, dict] = {ch: {"received_cents": 0, "refunded_cents": 0, "count": 0} for ch in CHANNELS}
+    for it in items:
+        b = by_channel[it["channel"]]
+        if it["kind"] == "received":
+            b["received_cents"] += it["amount_cents"]
+            b["count"] += 1
+        else:
+            b["refunded_cents"] += -it["amount_cents"]
+    receivable = await conn.fetch(
+        svc.SELECT_RESERVATION
+        + f""" WHERE (r.payment_status = 'onsite' AND r.status IN {PLAYED})
+                  OR (r.status = 'pending' AND r.hold_expires_at >= now())
+               ORDER BY lower(r.period)"""
+    )
+    settings = await load_settings(conn)
+    return {
+        "items": items,
+        "received_cents": sum(i["amount_cents"] for i in items if i["kind"] == "received"),
+        "refunded_cents": -sum(i["amount_cents"] for i in items if i["kind"] == "refunded"),
+        "by_channel": by_channel,
+        "receivable": [await svc.serialize(conn, r, _, settings) for r in receivable],
+        "receivable_cents": sum(r["price_cents"] for r in receivable),
+    }
+
+
+class ReceiveIn(BaseModel):
+    channel: Channel = "dinheiro"
+    note: str | None = Field(default=None, max_length=200)
+
+
+@router.post("/reservations/{code}/receive")
+async def receive(code: str, body: ReceiveIn, admin: Admin, conn: Conn):
+    """Recebimento no balcão (no local ou Pix pendente confirmado manualmente)."""
+    if body.channel in ("pix_online", "cartao_online"):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Escolha como o valor foi recebido no balcão.")
+    await svc.mark_paid(conn, await svc.fetch(conn, code), channel=body.channel, admin_id=admin["id"], note=body.note)
+    return await svc.serialize(conn, await svc.fetch(conn, code), admin)
+
+
+@router.get("/payments.csv")
+async def payments_csv(admin: Admin, conn: Conn, start: date | None = None, end: date | None = None):
+    data = await payments(admin, conn, start, end, None, "all")
+    s, e = _period(start, end)
+    return _csv(f"pagamentos-{s}-{e}", ["data_hora", "tipo", "canal", "valor", "reserva", "quadra", "cliente", "lancado_por", "obs"], [
+        [i["at"][:16].replace("T", " "), "recebimento" if i["kind"] == "received" else "estorno", i["channel"],
+         _brl(i["amount_cents"]), i["code"], i["court"], i["client"], i["admin"] or "online", i["note"] or ""]
+        for i in data["items"]
+    ])
+
+
+# ── Fechamento diário ───────────────────────────────────────────────────────
+
+async def _day_summary(conn: asyncpg.Connection, day: date) -> dict:
+    s, e = _bounds(day, day + timedelta(days=1))
+    by_channel = {ch: {"received_cents": 0, "refunded_cents": 0, "count": 0} for ch in CHANNELS}
+    for r in await conn.fetch(
+        """SELECT channel, count(*) AS n, sum(amount_cents) AS v FROM payments
+           WHERE status IN ('paid', 'refunded') AND paid_at >= $1 AND paid_at < $2 GROUP BY channel""", s, e):
+        by_channel[r["channel"]].update(received_cents=r["v"], count=r["n"])
+    for r in await conn.fetch(
+        """SELECT channel, sum(amount_cents) AS v FROM payments
+           WHERE status = 'refunded' AND refunded_at >= $1 AND refunded_at < $2 GROUP BY channel""", s, e):
+        by_channel[r["channel"]]["refunded_cents"] = r["v"]
+    games = await conn.fetchrow(
+        f"""SELECT count(*) FILTER (WHERE status IN {PLAYED}) AS played,
+                   count(*) FILTER (WHERE status = 'cancelled') AS cancelled,
+                   count(*) FILTER (WHERE status IN {PLAYED} AND checked_in_at IS NULL AND upper(period) <= now()) AS no_checkin,
+                   coalesce(sum(duration_min) FILTER (WHERE status IN {PLAYED}), 0) AS minutes,
+                   coalesce(sum(price_cents) FILTER (WHERE status IN {PLAYED}), 0) AS value_cents,
+                   coalesce(sum(price_cents) FILTER (WHERE status IN {PLAYED} AND payment_status = 'onsite'), 0) AS open_cents,
+                   count(*) FILTER (WHERE status IN {PLAYED} AND payment_status = 'onsite') AS open_count
+            FROM reservations WHERE lower(period) >= $1 AND lower(period) < $2""",
+        s, e,
+    )
+    by_court = await conn.fetch(
+        f"""SELECT c.name, count(r.id) AS bookings, coalesce(sum(r.duration_min), 0) AS minutes, coalesce(sum(r.price_cents), 0) AS value_cents
+            FROM courts c LEFT JOIN reservations r ON r.court_id = c.id AND r.status IN {PLAYED}
+                 AND lower(r.period) >= $1 AND lower(r.period) < $2
+            WHERE c.active GROUP BY c.id ORDER BY c.number""",
+        s, e,
+    )
+    received = sum(b["received_cents"] for b in by_channel.values())
+    refunded = sum(b["refunded_cents"] for b in by_channel.values())
+    cash = by_channel["dinheiro"]
+    return {
+        "date": day.isoformat(),
+        "by_channel": by_channel,
+        "received_cents": received,
+        "refunded_cents": refunded,
+        "net_cents": received - refunded,
+        "cash_expected_cents": cash["received_cents"] - cash["refunded_cents"],
+        "games": dict(games),
+        "by_court": [dict(r) for r in by_court],
+    }
+
+
+def _closing_out(row: asyncpg.Record | None) -> dict | None:
+    if row is None:
+        return None
+    tz = get_settings().tz
+    d = dict(row)
+    for k in ("closed_at", "reopened_at"):
+        d[k] = d[k].astimezone(tz).isoformat() if d[k] else None
+    d["day"] = d["day"].isoformat()
+    d["locked"] = d["reopened_at"] is None
+    return d
+
+
+CLOSING_SELECT = """SELECT dc.*, a.name AS closed_by_name, b.name AS reopened_by_name FROM daily_closings dc
+                    JOIN users a ON a.id = dc.closed_by LEFT JOIN users b ON b.id = dc.reopened_by"""
+
+
+@router.get("/closings/{day}")
+async def closing(day: date, _: Admin, conn: Conn):
+    summary = await _day_summary(conn, day)
+    row = await conn.fetchrow(CLOSING_SELECT + " WHERE dc.day = $1", day)
+    out = _closing_out(row)
+    drift = None
+    if out and out["locked"]:
+        drift = {"received_cents": summary["received_cents"] - out["received_cents"],
+                 "refunded_cents": summary["refunded_cents"] - out["refunded_cents"]}
+    return {"summary": summary, "closing": out, "drift": drift, "can_close": day <= now_local().date()}
+
+
+class CloseIn(BaseModel):
+    cash_counted_cents: int = Field(ge=0, le=100_000_000)
+    note: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/closings/{day}", status_code=201)
+async def close_day(day: date, body: CloseIn, admin: Admin, conn: Conn):
+    if day > now_local().date():
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Não dá para fechar um dia que ainda não começou.")
+    async with conn.transaction():
+        existing = await conn.fetchrow("SELECT * FROM daily_closings WHERE day = $1 FOR UPDATE", day)
+        if existing and existing["reopened_at"] is None:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Esse dia já está fechado.")
+        sm = await _day_summary(conn, day)
+        hist = existing["history"] if existing else []
+        await conn.execute(
+            """INSERT INTO daily_closings (day, received_cents, refunded_cents, cash_expected_cents, cash_counted_cents, snapshot, note, closed_by, history)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+               ON CONFLICT (day) DO UPDATE SET received_cents = $2, refunded_cents = $3, cash_expected_cents = $4,
+                   cash_counted_cents = $5, snapshot = $6, note = $7, closed_by = $8, closed_at = now(),
+                   reopened_at = NULL, reopened_by = NULL, history = $9""",
+            day, sm["received_cents"], sm["refunded_cents"], sm["cash_expected_cents"], body.cash_counted_cents,
+            sm, body.note, admin["id"], hist,
+        )
+    return await closing(day, admin, conn)
+
+
+class ReopenIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=200)
+
+
+@router.post("/closings/{day}/reopen")
+async def reopen_day(day: date, body: ReopenIn, admin: Admin, conn: Conn):
+    async with conn.transaction():
+        row = await conn.fetchrow("SELECT * FROM daily_closings WHERE day = $1 FOR UPDATE", day)
+        if row is None or row["reopened_at"] is not None:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Esse dia não está fechado.")
+        entry = {"closed_at": row["closed_at"].isoformat(), "closed_by": row["closed_by"],
+                 "received_cents": row["received_cents"], "cash_counted_cents": row["cash_counted_cents"],
+                 "cash_expected_cents": row["cash_expected_cents"],
+                 "reopened_at": now_local().isoformat(), "reopened_by": admin["id"], "reason": body.reason}
+        await conn.execute(
+            "UPDATE daily_closings SET reopened_at = now(), reopened_by = $2, history = history || $3::jsonb WHERE day = $1",
+            day, admin["id"], [entry],
+        )
+    return await closing(day, admin, conn)
+
+
+@router.get("/closings")
+async def closings(_: Admin, conn: Conn, start: date | None = None, end: date | None = None):
+    """Fechamentos do período + dias com movimento ainda sem fechamento."""
+    start, end = _period(start, end)
+    rows = await conn.fetch(CLOSING_SELECT + " WHERE dc.day >= $1 AND dc.day < $2 ORDER BY dc.day", start, end)
+    s, e = _bounds(start, min(end, now_local().date() + timedelta(days=1)))
+    moved = await conn.fetch(
+        """SELECT DISTINCT d FROM (
+               SELECT paid_at::date AS d FROM payments WHERE paid_at >= $1 AND paid_at < $2 AND status IN ('paid', 'refunded')
+               UNION SELECT refunded_at::date FROM payments WHERE refunded_at >= $1 AND refunded_at < $2
+           ) x ORDER BY d""",
+        s, e,
+    )
+    closed = {r["day"] for r in rows if r["reopened_at"] is None}
+    return {
+        "items": [_closing_out(r) for r in rows],
+        "pending_days": [r["d"].isoformat() for r in moved if r["d"] not in closed and r["d"] <= now_local().date()],
+    }
+
+
+# ── Relatórios de locação ───────────────────────────────────────────────────
+
+@router.get("/reports/rentals")
+async def rentals(_: Admin, conn: Conn, start: date | None = None, end: date | None = None, court_id: int | None = None):
+    start, end = _period(start, end)
+    s, e = _bounds(start, end)
+    base = f"FROM reservations r JOIN users u ON u.id = r.user_id JOIN courts c ON c.id = r.court_id WHERE lower(r.period) >= $1 AND lower(r.period) < $2 AND ($3::smallint IS NULL OR r.court_id = $3)"
+    played = f" AND r.status IN {PLAYED}"
+    args = (s, e, court_id)
+    totals = await conn.fetchrow(
+        f"""SELECT count(*) FILTER (WHERE r.status IN {PLAYED}) AS rentals,
+                   coalesce(sum(r.duration_min) FILTER (WHERE r.status IN {PLAYED}), 0) AS minutes,
+                   coalesce(sum(r.price_cents) FILTER (WHERE r.status IN {PLAYED}), 0) AS gross_cents,
+                   coalesce(sum(r.price_cents) FILTER (WHERE r.status IN {PLAYED} AND r.payment_status = 'paid'), 0) AS paid_cents,
+                   coalesce(sum(r.price_cents) FILTER (WHERE r.status IN {PLAYED} AND r.payment_status = 'onsite'), 0) AS open_cents,
+                   coalesce(sum(r.price_cents) FILTER (WHERE r.payment_status = 'refunded'), 0) AS refunded_cents,
+                   count(*) FILTER (WHERE r.status = 'cancelled') AS cancelled,
+                   count(*) FILTER (WHERE r.status = 'expired') AS expired,
+                   count(DISTINCT r.user_id) FILTER (WHERE r.status IN {PLAYED}) AS clients
+            {base}""", *args)
+    n_courts = 1 if court_id else await conn.fetchval("SELECT count(*) FROM courts WHERE active")
+    open_minutes = sum(sum(_m(c_) - _m(o) for o, c_ in i.intervals) for i in await day_infos(conn, start, (end - start).days))
+    capacity = open_minutes * n_courts
+
+    async def group(expr: str, label: str, order: str = "1") -> list[dict]:
+        rows = await conn.fetch(
+            f"""SELECT {expr} AS key, {label} AS label, count(*) AS rentals, sum(r.duration_min) AS minutes,
+                       sum(r.price_cents) AS gross_cents,
+                       coalesce(sum(r.price_cents) FILTER (WHERE r.payment_status = 'paid'), 0) AS paid_cents
+                {base}{played} GROUP BY 1, 2 ORDER BY {order}""", *args)
+        return [{**dict(r), "key": r["key"].isoformat() if isinstance(r["key"], date) else r["key"]} for r in rows]
+
+    return {
+        "start": start.isoformat(), "end": end.isoformat(), "court_id": court_id,
+        **dict(totals),
+        "capacity_minutes": capacity,
+        "occupancy": round(totals["minutes"] / capacity, 4) if capacity else 0,
+        "avg_ticket_cents": totals["gross_cents"] // totals["rentals"] if totals["rentals"] else 0,
+        "by_day": await group("lower(r.period)::date", "to_char(lower(r.period), 'DD/MM')"),
+        "by_court": await group("c.number", "c.name"),
+        "by_weekday": await group("extract(isodow FROM lower(r.period))::int", "extract(isodow FROM lower(r.period))::int"),
+        "by_hour": await group("extract(hour FROM lower(r.period))::int", "to_char(lower(r.period), 'HH24') || 'h'"),
+        "by_method": await group("r.payment_method", "r.payment_method"),
+        "by_duration": await group("r.duration_min::int", "r.duration_min || ' min'"),
+        "by_client": (await group("u.id::int", "u.name", "5 DESC, 3 DESC"))[:50],
+    }
+
+
+@router.get("/reports/rentals.csv")
+async def rentals_csv(
+    admin: Admin, conn: Conn, start: date | None = None, end: date | None = None, court_id: int | None = None,
+    group: Literal["day", "court", "weekday", "hour", "method", "duration", "client"] = "day",
+):
+    data = await rentals(admin, conn, start, end, court_id)
+    wd = ["", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+    rows = [[wd[g["label"]] if group == "weekday" else g["label"], g["rentals"], f"{g['minutes'] / 60:.1f}".replace(".", ","),
+             _brl(g["gross_cents"]), _brl(g["paid_cents"])] for g in data[f"by_{group}"]]
+    return _csv(f"locacoes-{group}-{data['start']}-{data['end']}", [group, "locacoes", "horas", "faturamento", "recebido"], rows)
+
+
+# ── Usuários (papéis: só o admin master altera) ─────────────────────────────
+
+@router.get("/users")
+async def users(_: Admin, conn: Conn, q: str = "", role: Literal["player", "admin"] | None = None, limit: int = Query(100, le=500)):
+    rows = await conn.fetch(
+        f"""SELECT u.id, u.name, u.email, u.phone, u.role, u.created_at,
+                   count(r.id) FILTER (WHERE r.status IN {PLAYED}) AS rentals,
+                   coalesce(sum(r.price_cents) FILTER (WHERE r.payment_status = 'paid'), 0) AS paid_cents,
+                   max(lower(r.period)) FILTER (WHERE r.status IN {PLAYED}) AS last_rental
+            FROM users u LEFT JOIN reservations r ON r.user_id = u.id
+            WHERE ($1 = '' OR u.name ILIKE '%' || $1 || '%' OR u.email::text ILIKE '%' || $1 || '%' OR coalesce(u.phone, '') ILIKE '%' || $1 || '%')
+              AND ($2::text IS NULL OR u.role = $2)
+            GROUP BY u.id ORDER BY (u.role = 'admin') DESC, u.name LIMIT $3""",
+        q.strip(), role, limit,
+    )
+    tz = get_settings().tz
+    return [{**dict(r), "email": str(r["email"]), "created_at": r["created_at"].astimezone(tz).isoformat(),
+             "last_rental": r["last_rental"].astimezone(tz).isoformat() if r["last_rental"] else None,
+             "is_master": get_settings().is_master(r["email"])} for r in rows]
+
+
+class RoleIn(BaseModel):
+    role: Literal["player", "admin"]
+
+
+@router.put("/users/{user_id}/role")
+async def set_role(user_id: int, body: RoleIn, _: Master, conn: Conn):
+    u = await conn.fetchrow("SELECT id, email FROM users WHERE id = $1", user_id)
+    if u is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuário não encontrado.")
+    if get_settings().is_master(u["email"]) and body.role != "admin":
+        raise HTTPException(status.HTTP_409_CONFLICT, "O admin master não pode ser rebaixado.")
+    await conn.execute("UPDATE users SET role = $2 WHERE id = $1", user_id, body.role)
+    return {"ok": True}
