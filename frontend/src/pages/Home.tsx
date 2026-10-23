@@ -6,6 +6,7 @@ import { useAuth } from "../auth";
 import { useBooking } from "../booking";
 import { BottomNav, DevCredit, MobileHeader, SiteFooter, SiteHeader, Spinner } from "../components/Layout";
 import { AiVisionCard } from "../components/AiVisionCard";
+import { GameCard } from "../components/GameCard";
 import { CourtCarousel } from "../components/CourtCarousel";
 import { TournamentCard } from "../components/TournamentCard";
 import { Ball } from "../components/Icons";
@@ -125,6 +126,7 @@ function HomeWeb() {
           </div>
         )}
         <div className="container" style={{ paddingTop: 24 }}><TournamentCard /></div>
+        <div className="container" style={{ paddingTop: 24 }}><GameCard /></div>
         <div className="container" style={{ paddingTop: 24 }}><AiVisionCard /></div>
 
         <section aria-labelledby="estrutura-t" id="estrutura" className="container" style={{ paddingTop: 56 }}>
@@ -282,6 +284,7 @@ function HomeMobile() {
           <p><strong>Promoção:</strong> {club.promo_text}</p>
         </section>
       )}
+      <div style={{ margin: "16px 20px 0" }}><GameCard compact /></div>
       <div style={{ margin: "16px 20px 0" }}><AiVisionCard compact /></div>
       <DevCredit mobile />
       <BottomNav />

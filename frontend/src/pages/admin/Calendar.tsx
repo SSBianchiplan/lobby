@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "../../api";
 import { Spinner } from "../../components/Layout";
 import { isoDay, money } from "../../format";
+import { useToast } from "../../components/Toast";
 import { useIsMobile } from "../../hooks";
 import { SessionModal } from "./Classes";
 import { PAY_STATUS } from "./shared";
@@ -56,6 +57,7 @@ function evClass(e: Ev) {
 /** Calendário avançado do admin: Dia (quadras em colunas), Semana (dias com faixas por quadra) e Mês (ocupação). */
 export default function Calendar() {
   const mobile = useIsMobile();
+  const toast = useToast();
   const [params] = useSearchParams();
   const [view, setView] = useState<View>(() => {
     const v = params.get("visao");
@@ -86,19 +88,24 @@ export default function Calendar() {
     else setBlock({ id: Number(e.id), reason: e.title, label: `${dayOf(e.start).split("-").reverse().slice(0, 2).join("/")} · ${hhmm(minOfDay(e.start))}–${hhmm(minOfDay(e.end))}` });
   };
 
-  /** Clique num espaço livre: abre reservar/bloquear com os minutos livres até o próximo evento ou o fim do expediente. */
-  const openSlot = (day: Day, c: Court, minute: number) => {
+  /** Situação de um horário (fatia de 30 min) numa quadra: livre (com minutos livres seguidos) ou o motivo. */
+  const slotCheck = (day: Day, c: Court, minute: number): { ok: true; t: number; free: number } | { ok: false; t: number; why: string } => {
     const t = Math.floor(minute / 30) * 30;
     const iv = day.intervals.map(([o, cl]) => [toMin(o), toMin(cl)] as const).find(([o, cl]) => t >= o && t < cl);
-    if (!iv) return;
-    const startDate = new Date(`${day.date}T${hhmm(t)}:00`);
-    if (startDate.getTime() <= Date.now()) return;
+    if (!iv) return { ok: false, t, why: day.open ? "Fora do horário de funcionamento." : "O clube está fechado nesse dia." };
+    if (new Date(`${day.date}T${hhmm(t)}:00`).getTime() <= Date.now()) return { ok: false, t, why: "Esse horário já passou." };
     const busy = (d?.events ?? []).filter((e) => dayOf(e.start) === day.date && (e.court_id === c.id || e.court_id === null));
-    if (busy.some((e) => minOfDay(e.start) <= t && t < (dayOf(e.end) === day.date ? minOfDay(e.end) : 1440))) return;
-    const nextStart = Math.min(iv[1], ...busy.map((e) => minOfDay(e.start)).filter((m) => m > t));
+    if (busy.some((e) => minOfDay(e.start) <= t && t < (dayOf(e.end) === day.date ? minOfDay(e.end) || 1440 : 1440))) return { ok: false, t, why: "Horário ocupado — clique no evento para ver os detalhes." };
+    return { ok: true, t, free: Math.min(iv[1], ...busy.map((e) => minOfDay(e.start)).filter((m) => m > t)) - t };
+  };
+
+  /** Clique num horário: abre reservar/bloquear; se não der, diz por quê. */
+  const openSlot = (day: Day, c: Court, minute: number) => {
+    const r = slotCheck(day, c, minute);
+    if (!r.ok) { toast(r.why); return; }
     const dayTimes: string[] = [];
     for (const [o, cl] of day.intervals) for (let m = toMin(o); m < toMin(cl); m += 30) dayTimes.push(hhmm(m));
-    setSlot({ courtId: c.id, courtName: c.name, date: day.date, time: hhmm(t), dayTimes, freeMinutes: nextStart - t });
+    setSlot({ courtId: c.id, courtName: c.name, date: day.date, time: hhmm(r.t), dayTimes, freeMinutes: r.free });
   };
 
   return (
@@ -133,6 +140,7 @@ export default function Calendar() {
       {!d ? <Spinner /> : view === "month"
         ? <MonthView data={d} events={events} courts={courts} anchor={anchor} onDay={(day) => { setAnchor(day); setView("day"); }} />
         : <TimeGrid view={view} data={d} events={events} courts={courts} mobile={mobile} onEvent={openEvent} onSlot={openSlot}
+            canBook={(day, c, minute) => slotCheck(day, c, minute).ok}
             onDay={(day) => { setAnchor(day); setView("day"); }} />}
 
       <SlotModal target={slot} onClose={() => setSlot(null)} />
@@ -145,10 +153,12 @@ export default function Calendar() {
 
 // ── Dia e Semana: grade de horário ──────────────────────────────────────────
 
-function TimeGrid({ view, data, events, courts, mobile, onEvent, onSlot, onDay }: {
+function TimeGrid({ view, data, events, courts, mobile, onEvent, onSlot, onDay, canBook }: {
   view: "day" | "week"; data: Data; events: Ev[]; courts: Court[]; mobile: boolean;
   onEvent: (e: Ev) => void; onSlot: (day: Day, c: Court, minute: number) => void; onDay: (iso: string) => void;
+  canBook: (day: Day, c: Court, minute: number) => boolean;
 }) {
+  const [ghost, setGhost] = useState<{ col: number; lane: number; t: number } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const days = view === "day" ? data.days.slice(0, 1) : data.days;
   const open = days.flatMap((d) => d.intervals.map(([o, c]) => [toMin(o), toMin(c)]));
@@ -165,7 +175,7 @@ function TimeGrid({ view, data, events, courts, mobile, onEvent, onSlot, onDay }
   }, [view, days.length]);
   const lanes = courts.length || 1;
   const hours = Array.from({ length: (to - from) / 60 }, (_, i) => from + i * 60);
-  const colMin = view === "day" ? (mobile ? 130 : 160) : (lanes > 1 ? 150 : 110);
+  const colMin = view === "day" ? (mobile ? 88 : 160) : (lanes > 1 ? 150 : 110);  // celular: as 3 quadras cabem lado a lado
 
   return (
     <div className="cal-wrap card" style={{ boxShadow: "none" }}>
@@ -196,16 +206,34 @@ function TimeGrid({ view, data, events, courts, mobile, onEvent, onSlot, onDay }
             let cur = from;
             for (const [o, c] of day.intervals.map(([o, c]) => [toMin(o), toMin(c)] as const).sort((a, b) => a[0] - b[0])) { if (o > cur) closed.push([cur, o]); cur = Math.max(cur, c); }
             if (cur < to) closed.push([cur, to]);
-            const click = (ev: MouseEvent<HTMLDivElement>) => {
-              if (ev.target !== ev.currentTarget) return;
+            const at = (ev: MouseEvent<HTMLDivElement>) => {
               const r = ev.currentTarget.getBoundingClientRect();
               const minute = from + (ev.clientY - r.top) / ppm;
               const lane = cs.length > 1 ? Math.min(cs.length - 1, Math.floor(((ev.clientX - r.left) / r.width) * cs.length)) : 0;
+              return { minute, lane };
+            };
+            const click = (ev: MouseEvent<HTMLDivElement>) => {
+              if (ev.target !== ev.currentTarget && !(ev.target as HTMLElement).classList.contains("cal-ghost")) return;
+              const { minute, lane } = at(ev);
               onSlot(day, cs[lane]!, minute);
             };
+            const move = (ev: MouseEvent<HTMLDivElement>) => {
+              if (mobile || (ev.target !== ev.currentTarget && !(ev.target as HTMLElement).classList.contains("cal-ghost"))) { setGhost(null); return; }
+              const { minute, lane } = at(ev);
+              const t = Math.floor(minute / 30) * 30;
+              setGhost(canBook(day, cs[lane]!, minute) ? { col: ci, lane, t } : null);
+            };
+            const pastEnd = day.date < today ? to : day.date === today ? Math.min(to, Math.max(from, nowMin)) : from;
             return (
               <div key={`${day.date}-${ci}`} className={`cal-col${day.date === today ? " today" : ""}`} style={{ height: H, backgroundSize: `100% ${60 * ppm}px` }} onClick={click}
-                role="presentation" title="Clique num horário livre para reservar ou bloquear">
+                onMouseMove={move} onMouseLeave={() => setGhost(null)} role="presentation">
+                {pastEnd > from && <div className="cal-past" style={{ top: 0, height: (pastEnd - from) * ppm }} aria-hidden="true" />}
+                {ghost && ghost.col === ci && (
+                  <div className="cal-ghost" style={{ top: (ghost.t - from) * ppm + 1, height: 30 * ppm - 2,
+                    left: cs.length > 1 ? `calc(${(ghost.lane / cs.length) * 100}% + 1px)` : 2, width: cs.length > 1 ? `calc(${100 / cs.length}% - 2px)` : "calc(100% - 4px)" }}>
+                    + {cs.length > 1 ? `Q${cs[ghost.lane]!.number} ` : ""}{hhmm(ghost.t)}
+                  </div>
+                )}
                 {closed.map(([a, b]) => <div key={a} className="cal-closed" style={{ top: (a - from) * ppm, height: (b - a) * ppm }} />)}
                 {!day.open && <div className="cal-closed-label">Fechado{day.holiday ? ` · ${day.holiday}` : ""}</div>}
                 {dayEvents.map((e) => {

@@ -360,6 +360,9 @@ button.cal-head { cursor: pointer; }
 .cal-col { position: relative; border-left: 1px solid var(--line); cursor: copy;
   background-image: linear-gradient(to bottom, var(--line) 1px, transparent 1px); }
 .cal-col.today { background-color: color-mix(in srgb, var(--red) 4%, transparent); }
+.cal-past { position: absolute; left: 0; right: 0; background: color-mix(in srgb, var(--off-bg) 70%, transparent); pointer-events: none; z-index: 1; }
+.cal-ghost { position: absolute; z-index: 2; display: flex; align-items: center; padding: 0 8px; border-radius: 8px; border: 2px dashed var(--red);
+  background: color-mix(in srgb, var(--red) 10%, var(--surface)); color: var(--red-deep); font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap; overflow: hidden; }
 .cal-closed { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, var(--off-bg) 0 6px, transparent 6px 12px); pointer-events: none; }
 .cal-closed-label { position: absolute; top: 40%; left: 0; right: 0; text-align: center; font-size: 12px; font-weight: 800; color: var(--muted); pointer-events: none; }
 .cal-ev { position: absolute; z-index: 2; display: flex; flex-direction: column; gap: 1px; padding: 3px 6px; border-radius: 8px; border: 0; border-left: 4px solid; overflow: hidden; text-align: left; font: inherit; font-size: 11px; line-height: 1.25; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
@@ -544,6 +547,7 @@ button.cal-head { cursor: pointer; }
 .aiv-card.compact .aiv-title { font-size: 22px; }
 .aiv-card.compact .aiv-text { font-size: 13px; }
 .aiv-card.compact .btn { height: 42px; padding: 0 16px; font-size: 13px; white-space: normal; text-align: left; line-height: 1.2; }
+.game-card { background: radial-gradient(120% 140% at 100% 0%, #1f43b8 0%, #0c1830 60%, #08101f 100%); }
 @media (max-width: 900px) { .aiv-card:not(.compact) { flex-direction: column; align-items: flex-start; } }
 @media (max-width: 520px) { .aiv-card.compact svg { display: none; } }
 

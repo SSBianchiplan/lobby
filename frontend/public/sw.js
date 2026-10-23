@@ -1,6 +1,6 @@
 // Padel Lobby — service worker: app instalável e abre sem rede (a casca; dados sempre da API).
 // /api nunca é cacheado: horários e pagamentos têm de ser os de agora.
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL = `shell-${VERSION}`;
 const ASSETS = `assets-${VERSION}`;
 const PRECACHE = ["/", "/manifest.webmanifest", "/logo.png", "/icon-192.png", "/favicon-32.png"];
@@ -20,7 +20,7 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = new URL(req.url);
-  if (req.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/api/")) return;
+  if (req.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/api/") || url.pathname.startsWith("/jogo")) return;  // o jogo tem o próprio service worker
 
   // Navegação (SPA): rede primeiro, casca guardada se estiver offline.
   if (req.mode === "navigate") {

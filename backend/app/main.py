@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import db, jobs, preview
@@ -58,6 +58,11 @@ if DIST.exists():
         file = (DIST / path).resolve()
         if path and file.is_relative_to(DIST) and file.is_file():
             return FileResponse(file)
+        # site estático em subpasta (ex.: /jogo/): serve o index.html dela, sem cache para pegar versão nova
+        if path and file.is_relative_to(DIST) and (file / "index.html").is_file():
+            if not path.endswith("/"):
+                return RedirectResponse(f"/{path}/", status_code=308)
+            return FileResponse(file / "index.html", headers={"Cache-Control": "no-cache"})
         meta = None
         if m := preview.INVITE.match(path):
             async with db.pool().acquire() as conn:
