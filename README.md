@@ -68,6 +68,20 @@ que imprime a senha aleatória uma única vez.
 trigger no banco recusa recebimentos de balcão nele; Pix e cartão online nunca são barrados (o dinheiro já entrou) e
 aparecem como "movimento após o fechamento". Reabrir exige motivo e fica no histórico do fechamento.
 
+### Conta do usuário
+
+- **Criar conta** (`/cadastro`): senha de 8+ caracteres com medidor de força e confirmação, perfil de jogador opcional
+  (categoria iniciante/6ª–1ª, lado, mão dominante, cidade) e aceite obrigatório dos [termos e privacidade](/termos).
+- **Perfil** (`/perfil`): estatísticas (jogos, horas, gasto, quadra favorita, próximas), parceiros frequentes, dados
+  pessoais, perfil de jogador, troca de senha (exige a atual), "sair de todos os aparelhos", baixar meus dados (JSON)
+  e excluir conta — a exclusão anonimiza nome/e-mail/telefone e mantém reservas e pagamentos sem identificação.
+- **Sessão**: o JWT leva `tv` (versão da sessão); trocar senha, sair de todos, redefinição pela recepção ou exclusão
+  incrementam `users.token_version` e derrubam os tokens antigos. Login trava 5 min após 5 senhas erradas no mesmo e-mail.
+- **Esqueci a senha** (não há envio de e-mail): a recepção gera uma senha temporária em *Admin › Usuários*; no próximo
+  acesso a troca é obrigatória. Admin comum redefine jogadores; só o master redefine outros admins; a do master, ninguém.
+- **Card iaVision** (home web e mobile, perfil): CTA para [GPlanSiS|iaVision](https://aivision.gplansis.com) — visão
+  computacional e IA na análise de atletas e partidas, online e offline, relatórios de biomecânica e desempenho.
+
 ### PWA
 
 Instalável no celular ("Adicionar à tela inicial"): `manifest.webmanifest`, ícones normais e *maskable*,

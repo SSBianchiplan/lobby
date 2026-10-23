@@ -17,10 +17,11 @@ def verify_password(password: str, hashed: str) -> bool:
         return False
 
 
-def create_token(user_id: int, role: str) -> str:
+def create_token(user_id: int, role: str, token_version: int = 0) -> str:
     s = get_settings()
     now = datetime.now(timezone.utc)
-    payload = {"sub": str(user_id), "role": role, "iat": now, "exp": now + timedelta(hours=s.jwt_ttl_hours)}
+    # tv: versão da sessão do usuário — incrementá-la no banco invalida todos os tokens já emitidos
+    payload = {"sub": str(user_id), "role": role, "tv": token_version, "iat": now, "exp": now + timedelta(hours=s.jwt_ttl_hours)}
     return jwt.encode(payload, s.jwt_secret, algorithm="HS256")
 
 

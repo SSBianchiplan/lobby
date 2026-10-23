@@ -37,7 +37,7 @@ def anyio_backend():
 
 
 async def make_user(client, email="ana@ex.com", name="Ana Souza"):
-    r = await client.post("/api/auth/register", json={"name": name, "email": email, "password": "segredo123"})
+    r = await client.post("/api/auth/register", json={"name": name, "email": email, "password": "segredo123", "accept_terms": True})
     assert r.status_code == 201, r.text
     return {"Authorization": f"Bearer {r.json()['token']}"}
 

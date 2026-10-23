@@ -119,6 +119,7 @@ export function SiteFooter() {
         <p style={{ fontWeight: 900, fontStyle: "italic", fontSize: 18 }}>PADEL <span style={{ color: "var(--ball)" }}>LOBBY</span></p>
         {club && <a href={`mailto:${club.email}`}>{club.email}</a>}
         {wa ? <a href={wa}>WhatsApp</a> : <span style={{ fontWeight: 600 }}>WhatsApp [TELEFONE]</span>}
+        <Link to="/termos">Termos e privacidade</Link>
         <span style={{ marginLeft: "auto", color: "#BDB6B6", fontWeight: 500 }}>© {new Date().getFullYear()} Padel Lobby · Rio Grande, RS</span>
       </div>
     </footer>

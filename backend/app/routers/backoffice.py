@@ -2,6 +2,7 @@
 
 import csv
 import io
+import secrets
 from datetime import date, time, timedelta
 from typing import Literal
 
@@ -12,6 +13,7 @@ from pydantic import BaseModel, Field
 from .. import reservations as svc
 from ..config import get_settings
 from ..deps import Admin, Conn, Master
+from ..security import hash_password
 from ..domain import WEEKDAY_SHORT, _m, day_infos, load_settings, local_dt, now_local
 
 router = APIRouter(prefix="/api/admin", tags=["retaguarda"])
@@ -425,12 +427,13 @@ async def rentals_csv(
 @router.get("/users")
 async def users(_: Admin, conn: Conn, q: str = "", role: Literal["player", "admin"] | None = None, limit: int = Query(100, le=500)):
     rows = await conn.fetch(
-        f"""SELECT u.id, u.name, u.email, u.phone, u.role, u.created_at,
+        f"""SELECT u.id, u.name, u.email, u.phone, u.role, u.created_at, u.level, u.side, u.city, u.last_login_at,
+                   u.must_change_password,
                    count(r.id) FILTER (WHERE r.status IN {PLAYED}) AS rentals,
                    coalesce(sum(r.price_cents) FILTER (WHERE r.payment_status = 'paid'), 0) AS paid_cents,
                    max(lower(r.period)) FILTER (WHERE r.status IN {PLAYED}) AS last_rental
             FROM users u LEFT JOIN reservations r ON r.user_id = u.id
-            WHERE ($1 = '' OR u.name ILIKE '%' || $1 || '%' OR u.email::text ILIKE '%' || $1 || '%' OR coalesce(u.phone, '') ILIKE '%' || $1 || '%')
+            WHERE u.deleted_at IS NULL AND ($1 = '' OR u.name ILIKE '%' || $1 || '%' OR u.email::text ILIKE '%' || $1 || '%' OR coalesce(u.phone, '') ILIKE '%' || $1 || '%')
               AND ($2::text IS NULL OR u.role = $2)
             GROUP BY u.id ORDER BY (u.role = 'admin') DESC, u.name LIMIT $3""",
         q.strip(), role, limit,
@@ -438,6 +441,7 @@ async def users(_: Admin, conn: Conn, q: str = "", role: Literal["player", "admi
     tz = get_settings().tz
     return [{**dict(r), "email": str(r["email"]), "created_at": r["created_at"].astimezone(tz).isoformat(),
              "last_rental": r["last_rental"].astimezone(tz).isoformat() if r["last_rental"] else None,
+             "last_login_at": r["last_login_at"].astimezone(tz).isoformat() if r["last_login_at"] else None,
              "is_master": get_settings().is_master(r["email"])} for r in rows]
 
 
@@ -454,3 +458,24 @@ async def set_role(user_id: int, body: RoleIn, _: Master, conn: Conn):
         raise HTTPException(status.HTTP_409_CONFLICT, "O admin master não pode ser rebaixado.")
     await conn.execute("UPDATE users SET role = $2 WHERE id = $1", user_id, body.role)
     return {"ok": True}
+
+
+@router.post("/users/{user_id}/reset-password")
+async def reset_password(user_id: int, admin: Admin, conn: Conn):
+    """"Esqueci a senha" sem e-mail: a recepção gera uma senha temporária (mostrada uma vez) e o jogador
+    é obrigado a trocá-la no próximo acesso. Senha de admin só o master redefine; a do master, ninguém por aqui."""
+    u = await conn.fetchrow("SELECT id, email, role FROM users WHERE id = $1 AND deleted_at IS NULL", user_id)
+    if u is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuário não encontrado.")
+    settings = get_settings()
+    if settings.is_master(u["email"]):
+        raise HTTPException(status.HTTP_409_CONFLICT, "A senha do admin master só é trocada por ele mesmo, no perfil.")
+    if u["role"] == "admin" and not settings.is_master(admin["email"]):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Só o admin master redefine a senha de outro administrador.")
+    temp = "-".join(secrets.token_hex(2) for _ in range(3))  # ex.: 3f9a-0b1c-77de
+    await conn.execute(
+        """UPDATE users SET password_hash = $2, must_change_password = true, token_version = token_version + 1, updated_at = now()
+           WHERE id = $1""",
+        user_id, hash_password(temp),
+    )
+    return {"temporary_password": temp}

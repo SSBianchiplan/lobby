@@ -98,7 +98,7 @@ async def test_bookings_occupancy_and_rentals_report(client):
 
 async def test_master_admin_controls_roles(client):
     # cadastro público com e-mail master é recusado (e-mail não é verificado)
-    r = await client.post("/api/auth/register", json={"name": "Impostor", "email": MASTER, "password": "segredo123"})
+    r = await client.post("/api/auth/register", json={"name": "Impostor", "email": MASTER, "password": "segredo123", "accept_terms": True})
     assert r.status_code == 409
     async with db.pool().acquire() as conn:
         await conn.execute("INSERT INTO users (name, email, password_hash, role) VALUES ('Master', $1, $2, 'admin')",

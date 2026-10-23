@@ -29,4 +29,9 @@ export const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   cancelled: { text: "Cancelada", cls: "badge-off" },
   expired: { text: "Expirada", cls: "badge-off" },
 };
+export const LEVEL_LABEL: Record<string, string> = {
+  iniciante: "Iniciante", "6": "6ª categoria", "5": "5ª categoria", "4": "4ª categoria", "3": "3ª categoria", "2": "2ª categoria", "1": "1ª categoria",
+};
+export const SIDE_LABEL: Record<string, string> = { direita: "Direita (drive)", esquerda: "Esquerda (revés)", ambos: "Os dois lados" };
+export const HAND_LABEL: Record<string, string> = { destro: "Destro", canhoto: "Canhoto" };
 export const PAY_LABEL: Record<string, string> = { pix: "Pix", card: "Cartão", onsite: "No local" };

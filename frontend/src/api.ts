@@ -1,4 +1,12 @@
-export type User = { id: number; name: string; email: string; phone: string | null; role: "player" | "admin"; is_master?: boolean };
+export type Level = "iniciante" | "6" | "5" | "4" | "3" | "2" | "1";
+export type Side = "direita" | "esquerda" | "ambos";
+export type Hand = "destro" | "canhoto";
+export type User = {
+  id: number; name: string; email: string; phone: string | null; role: "player" | "admin"; is_master?: boolean;
+  city?: string | null; level?: Level | null; side?: Side | null; hand?: Hand | null;
+  marketing_opt_in?: boolean; must_change_password?: boolean; member_since?: string;
+};
+export type Session = { token: string; user: User };
 
 export type Court = { id: number; number: number; name: string; description: string; surface?: string };
 

@@ -11,12 +11,14 @@ import Invite from "./pages/Invite";
 import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import Admin from "./pages/admin/Admin";
+import Terms from "./pages/Terms";
 
 export function RequireAuth({ children, admin }: { children: ReactNode; admin?: boolean }) {
   const { user, ready } = useAuth();
   const loc = useLocation();
   if (!ready) return <Spinner />;
   if (!user) return <Navigate to={`/entrar?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
+  if (user.must_change_password && loc.pathname !== "/perfil") return <Navigate to="/perfil?trocar-senha=1" replace />;
   if (admin && user.role !== "admin") return <Navigate to="/" replace />;
   return <>{children}</>;
 }
@@ -40,6 +42,7 @@ export default function App() {
         <Route path="/convite/:token" element={<Invite />} />
         <Route path="/entrar" element={<Login />} />
         <Route path="/cadastro" element={<Login register />} />
+        <Route path="/termos" element={<Terms />} />
         <Route path="/perfil" element={<RequireAuth><Profile /></RequireAuth>} />
         <Route path="/admin/*" element={<RequireAuth admin><Admin /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />
