@@ -7,6 +7,7 @@ import { useToast } from "../../components/Toast";
 import { dayLabel, isoDay, money } from "../../format";
 import { useClub } from "../../hooks";
 import Bookings from "./Bookings";
+import Calendar from "./Calendar";
 import Classes from "./Classes";
 import ClosingPage from "./Closing";
 import Occupancy from "./Occupancy";
@@ -14,10 +15,11 @@ import Payments from "./Payments";
 import Reports from "./Reports";
 import Settings from "./Settings";
 import { downloadCsv, pct, ResTable, useAdminActions } from "./shared";
+import Manual from "./Manual";
 import Users from "./Users";
 
 const TABS: [string, string][] = [
-  ["/admin", "Painel"], ["/admin/agenda", "Agenda do dia"], ["/admin/agendamentos", "Agendamentos"],
+  ["/admin", "Painel"], ["/admin/agenda", "Agenda do dia"], ["/admin/calendario", "Calendário"], ["/admin/agendamentos", "Agendamentos"],
   ["/admin/disponibilidade", "Disponibilidade"], ["/admin/aulas", "Aulas"], ["/admin/pagamentos", "Pagamentos"], ["/admin/fechamento", "Fechamento"],
   ["/admin/relatorios", "Relatórios"], ["/admin/usuarios", "Usuários"], ["/admin/config", "Configurações"],
 ];
@@ -38,6 +40,7 @@ export default function Admin() {
           <Routes>
             <Route index element={<Dashboard />} />
             <Route path="agenda" element={<DaySchedule />} />
+            <Route path="calendario" element={<Calendar />} />
             <Route path="agendamentos" element={<Bookings />} />
             <Route path="reservas" element={<Bookings />} />
             <Route path="disponibilidade" element={<Occupancy />} />
@@ -46,6 +49,7 @@ export default function Admin() {
             <Route path="fechamento" element={<ClosingPage />} />
             <Route path="relatorios" element={<Reports />} />
             <Route path="usuarios" element={<Users />} />
+            <Route path="manual" element={<Manual />} />
             <Route path="config" element={<Settings />} />
           </Routes>
         </div>

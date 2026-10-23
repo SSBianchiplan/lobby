@@ -459,6 +459,37 @@ async def users(_: Admin, conn: Conn, q: str = "", role: Literal["player", "admi
              "is_master": get_settings().is_master(r["email"])} for r in rows]
 
 
+class NewUserIn(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    email: EmailStr
+    phone: str | None = Field(default=None, max_length=30)
+    role: Literal["player", "admin"] = "player"
+    level: Literal["iniciante", "6", "5", "4", "3", "2", "1"] | None = None
+    city: str | None = Field(default=None, max_length=60)
+
+
+@router.post("/users", status_code=201)
+async def create_user(body: NewUserIn, admin: Admin, conn: Conn):
+    """Cria a conta pela administração com senha temporária (mostrada uma vez; troca obrigatória no 1º acesso).
+    Admin comum cria jogadores; administradores, só o master."""
+    settings = get_settings()
+    if body.role == "admin" and not settings.is_master(admin["email"]):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Só o admin master cria administradores.")
+    if settings.is_master(body.email):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Esse e-mail é reservado ao admin master.")
+    temp = "-".join(secrets.token_hex(2) for _ in range(3))
+    try:
+        u = await conn.fetchrow(
+            """INSERT INTO users (name, email, phone, role, level, city, password_hash, must_change_password)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, true) RETURNING id, name, email::text AS email, role""",
+            body.name.strip(), str(body.email).lower(), (body.phone or "").strip() or None, body.role, body.level,
+            (body.city or "").strip() or None, hash_password(temp))
+    except asyncpg.UniqueViolationError:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Já existe uma conta com esse e-mail.")
+    log.info("usuário %s (%s) criado por %s", u["email"], u["role"], admin["email"])
+    return {**dict(u), "temporary_password": temp}
+
+
 class RoleIn(BaseModel):
     role: Literal["player", "admin"]
 
@@ -626,3 +657,47 @@ async def admin_book(body: AdminBookingIn, admin: Admin, conn: Conn):
             warning = f"Reserva criada, mas o recebimento não foi lançado: {e.detail} Ela ficou como \"a receber\"."
     out = await svc.serialize(conn, await svc.fetch(conn, res["code"]), admin)
     return {**out, "warning": warning}
+
+
+# ── Calendário (dia/semana/mês): reservas, aulas e bloqueios como eventos ──
+
+@router.get("/calendar")
+async def calendar_events(_: Admin, conn: Conn, start: date, end: date, court_id: int | None = None):
+    """Eventos em [start, end) — até 42 dias (mês com semanas completas)."""
+    if end <= start or (end - start).days > 42:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Período inválido (máximo 42 dias).")
+    s, e = _bounds(start, end)
+    tz = get_settings().tz
+    iso = lambda v: v.astimezone(tz).isoformat()  # noqa: E731
+    courts = await conn.fetch("SELECT id, number, name, photo FROM courts WHERE active ORDER BY number")
+    events: list[dict] = []
+    for r in await conn.fetch(
+            """SELECT r.code, r.court_id, lower(r.period) AS s, upper(r.period) AS e, r.status, r.payment_status, r.payment_method,
+                      r.price_cents, u.name AS who, (SELECT count(*) FROM reservation_players p WHERE p.reservation_id = r.id) AS players
+               FROM reservations r JOIN users u ON u.id = r.user_id
+               WHERE r.period && tstzrange($1, $2) AND r.status IN ('pending', 'confirmed', 'checked_in', 'completed')
+                 AND NOT (r.status = 'pending' AND r.hold_expires_at < now()) AND ($3::smallint IS NULL OR r.court_id = $3)""", s, e, court_id):
+        events.append({"type": "reservation", "id": r["code"], "court_id": r["court_id"], "start": iso(r["s"]), "end": iso(r["e"]),
+                       "title": r["who"], "subtitle": r["code"], "status": r["status"], "pay": r["payment_status"],
+                       "method": r["payment_method"], "price_cents": r["price_cents"], "players": r["players"]})
+    for x in await conn.fetch(
+            """SELECT x.id, x.court_id, lower(x.period) AS s, upper(x.period) AS e, x.status, x.started_at,
+                      coalesce(x.title, g.name, 'Aula') AS name, c.id AS coach_id, c.name AS coach, c.color,
+                      (SELECT count(*) FROM attendance a WHERE a.session_id = x.id AND a.status = 'present') AS present,
+                      CASE WHEN x.group_id IS NULL THEN (SELECT count(*) FROM attendance a WHERE a.session_id = x.id)
+                           ELSE (SELECT count(*) FROM enrollments en WHERE en.group_id = x.group_id AND en.status = 'active') END AS expected
+               FROM class_sessions x JOIN coaches c ON c.id = x.coach_id LEFT JOIN class_groups g ON g.id = x.group_id
+               WHERE x.period && tstzrange($1, $2) AND x.status <> 'cancelled' AND ($3::smallint IS NULL OR x.court_id = $3)""", s, e, court_id):
+        events.append({"type": "class", "id": x["id"], "court_id": x["court_id"], "start": iso(x["s"]), "end": iso(x["e"]),
+                       "title": x["name"], "subtitle": x["coach"], "status": x["status"], "color": x["color"], "coach_id": x["coach_id"],
+                       "started": x["started_at"] is not None, "present": x["present"], "expected": x["expected"]})
+    for b in await conn.fetch(
+            """SELECT id, court_id, lower(period) AS s, upper(period) AS e, reason FROM blocks
+               WHERE period && tstzrange($1, $2) AND ($3::smallint IS NULL OR court_id IS NULL OR court_id = $3)""", s, e, court_id):
+        events.append({"type": "block", "id": b["id"], "court_id": b["court_id"], "start": iso(b["s"]), "end": iso(b["e"]),
+                       "title": b["reason"], "subtitle": "Bloqueio"})
+    days = [{"date": i.day.isoformat(), "open": i.open, "holiday": i.holiday,
+             "intervals": [[o.strftime("%H:%M"), "24:00" if _m(c) == 1440 else c.strftime("%H:%M")] for o, c in i.intervals]}
+            for i in await day_infos(conn, start, (end - start).days)]
+    events.sort(key=lambda ev: (ev["start"], ev["court_id"] or 0))
+    return {"courts": [dict(c) for c in courts], "days": days, "events": events, "now": now_local().isoformat()}

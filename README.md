@@ -106,6 +106,16 @@ obrigatória). O professor vê só as próprias aulas: aulas de hoje com **Inici
 recepção), chamada, aluno avulso, **anotações da aula** (o admin vê na chamada), agenda dos próximos dias, turmas,
 alunos com frequência e o próprio QR. Sem valores financeiros e sem cancelar aulas (`routers/coach.py`).
 
+### Calendário, manual e usuários
+
+- **Calendário** (*Admin › Calendário*): visões Dia (quadras em colunas, eventos em escala real, hora atual),
+  Semana (dias com faixas por quadra) e Mês (ocupação, reservas, aulas e faturamento por dia); clique no livre para
+  reservar/bloquear e no evento para agir; filtros por quadra e tipo (`GET /api/admin/calendar`).
+- **Manual do sistema** (HTML, `backend/app/static/manual.html`) servido só para administradores em
+  `GET /api/admin/manual` e aberto em *Admin › Usuários › Manual do sistema* (abrir, imprimir, baixar).
+- **Criar usuários** em *Admin › Usuários* com senha temporária e troca obrigatória (admin cria jogadores; o master
+  também cria administradores).
+
 ### Tema escuro, telas e compartilhamento
 
 - **Tema escuro** (paleta do VS Code Dark) por tokens CSS: automático pelo sistema ou escolhido no cabeçalho/perfil.

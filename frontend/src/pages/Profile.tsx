@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, type Session, type User } from "../api";
 import { useAuth } from "../auth";
 import { AiVisionCard } from "../components/AiVisionCard";
-import { BottomNav, MobileHeader, SiteFooter, SiteHeader, Spinner } from "../components/Layout";
+import { BottomNav, DevCredit, MobileHeader, SiteFooter, SiteHeader, Spinner } from "../components/Layout";
 import { Shield } from "../components/Icons";
 import { useConfirm } from "../components/Modal";
 import { ThemeChooser } from "../components/Theme";
@@ -229,6 +229,7 @@ export default function Profile() {
             <li>Check-in na recepção a partir de 1 h antes do horário, apresentando o QR code ou o código da reserva.</li>
           </ul>
         </Section>
+        <div className="hide-desktop"><DevCredit mobile /></div>
       </main>
       <SiteFooter />
       <BottomNav />

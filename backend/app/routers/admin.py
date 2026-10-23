@@ -1,8 +1,10 @@
 import csv
 import io
 from datetime import date, datetime, time, timedelta
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from .. import reservations as svc
@@ -298,3 +300,12 @@ async def set_court_photo(court_id: int, body: CourtPhotoIn, _: Admin, conn: Con
     if await conn.execute("UPDATE courts SET photo = $2 WHERE id = $1", court_id, body.photo) == "UPDATE 0":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Quadra não encontrada.")
     return {"ok": True}
+
+
+MANUAL = Path(__file__).resolve().parent.parent / "static" / "manual.html"
+
+
+@router.get("/manual", response_class=HTMLResponse)
+async def manual(_: Admin):
+    """Manual do sistema — fora da pasta pública: só administradores recebem."""
+    return HTMLResponse(MANUAL.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})

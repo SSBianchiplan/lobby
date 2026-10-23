@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manual do Sistema — Padel Lobby</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,500;0,600;0,700;0,800;0,900;1,900&display=swap" rel="stylesheet">
+<style>
+  :root { --red: #C8102E; --red-deep: #A50D25; --ball: #F2A516; --ink: #2B2B2B; --muted: #6E6E6E; --bg: #F7F5F5; --surface: #FFFFFF;
+          --line: #ECE7E7; --pink: #FDECEE; --cream: #FFF4DC; --cream-ink: #5A4300; --ok-bg: #E7F4EA; --ok-ink: #1E6B34; color-scheme: light; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --red: #E5484D; --red-deep: #F2555A; --ink: #D4D4D4; --muted: #9D9D9D; --bg: #1E1E1E; --surface: #252526;
+      --line: #3C3C3C; --pink: #3A2326; --cream: #3A3220; --cream-ink: #E9C46A; --ok-bg: #1D3526; --ok-ink: #73C991; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --red: #E5484D; --red-deep: #F2555A; --ink: #D4D4D4; --muted: #9D9D9D; --bg: #1E1E1E; --surface: #252526;
+      --line: #3C3C3C; --pink: #3A2326; --cream: #3A3220; --cream-ink: #E9C46A; --ok-bg: #1D3526; --ok-ink: #73C991; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 "Montserrat", -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  a { color: var(--red); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 32px; }
+  header.top { grid-column: 1 / -1; background: linear-gradient(160deg, #E8402A, #C8102E 50%, #8E0F1B); color: #fff; border-radius: 24px; padding: 28px 32px; }
+  header.top p { margin: 4px 0 0; opacity: .9; font-weight: 500; color: #fff; }
+  h1 { margin: 0; font-size: 32px; font-style: italic; font-weight: 900; line-height: 1.1; }
+  nav.toc { position: sticky; top: 16px; align-self: start; max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); border-radius: 18px; padding: 16px 18px; font-size: 14px; }
+  nav.toc strong { display: block; margin-bottom: 8px; font-size: 12px; letter-spacing: .06em; color: var(--muted); }
+  nav.toc ol { margin: 0; padding-left: 18px; }
+  nav.toc li { margin: 3px 0; }
+  nav.toc a { color: var(--ink); text-decoration: none; font-weight: 600; }
+  nav.toc a:hover { color: var(--red); }
+  main section { background: var(--surface); border-radius: 20px; padding: 24px 28px; margin-bottom: 20px; }
+  h2 { margin: 0 0 12px; font-size: 24px; font-style: italic; font-weight: 900; color: var(--ink); scroll-margin-top: 16px; }
+  h2 .n { color: var(--red); }
+  h3 { margin: 20px 0 6px; font-size: 17px; font-weight: 800; }
+  p, li { color: var(--ink); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+  code, kbd { background: var(--bg); border-radius: 6px; padding: 1px 6px; font-size: .92em; }
+  .tip, .warn, .rule { border-radius: 14px; padding: 12px 16px; margin: 12px 0; font-size: 15px; }
+  .tip { background: var(--ok-bg); color: var(--ok-ink); }
+  .warn { background: var(--pink); color: var(--red-deep); }
+  .rule { background: var(--cream); color: var(--cream-ink); }
+  .tip b, .warn b, .rule b { color: inherit; }
+  .badge { display: inline-block; font-size: 12px; font-weight: 800; padding: 2px 10px; border-radius: 10px; background: var(--bg); }
+  .steps { counter-reset: s; list-style: none; padding-left: 0; }
+  .steps li { counter-increment: s; position: relative; padding-left: 38px; margin: 10px 0; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px; border-radius: 13px; background: var(--red); color: #fff; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  footer { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 13px; }
+  @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; } main section { padding: 20px; } h1 { font-size: 26px; } }
+  @media print {
+    body { background: #fff; } nav.toc { display: none; } .wrap { display: block; max-width: none; padding: 0; }
+    header.top { color: #000; background: none; border: 2px solid #C8102E; } main section { break-inside: avoid-page; border: 1px solid #ddd; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Manual do Sistema · Padel Lobby</h1>
+    <p>Reservas de quadras, aulas, recepção, caixa e relatórios · versão de 23/10/2026 · uso interno da administração</p>
+  </header>
+
+  <nav class="toc" aria-label="Sumário">
+    <strong>SUMÁRIO</strong>
+    <ol>
+      <li><a href="#visao">Visão geral</a></li>
+      <li><a href="#perfis">Perfis e acessos</a></li>
+      <li><a href="#site">Site e app do jogador</a></li>
+      <li><a href="#conta">Conta, perfil e segurança</a></li>
+      <li><a href="#reservas">Reservas e pagamentos</a></li>
+      <li><a href="#checkin">Check-in por QR e recepção</a></li>
+      <li><a href="#painel">Painel e agenda do dia</a></li>
+      <li><a href="#calendario">Calendário</a></li>
+      <li><a href="#agendamentos">Agendamentos e disponibilidade</a></li>
+      <li><a href="#aulas">Aulas e alunos</a></li>
+      <li><a href="#professor">Área do professor</a></li>
+      <li><a href="#pagamentos">Pagamentos</a></li>
+      <li><a href="#fechamento">Fechamento de caixa</a></li>
+      <li><a href="#relatorios">Relatórios</a></li>
+      <li><a href="#usuarios">Usuários e admin master</a></li>
+      <li><a href="#config">Configurações</a></li>
+      <li><a href="#rotinas">Rotinas do dia a dia</a></li>
+      <li><a href="#regras">Regras de negócio</a></li>
+      <li><a href="#problemas">Solução de problemas</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <section id="visao">
+      <h2><span class="n">1.</span> Visão geral</h2>
+      <p>O sistema reúne em um só lugar tudo o que acontece no clube: <b>reservas de quadra</b> pelo site/app, <b>aulas e alunos</b>,
+        <b>check-in por QR code</b> na recepção, <b>controle de pagamentos</b>, <b>fechamento diário de caixa</b> e <b>relatórios</b>.</p>
+      <p>Endereço: <b>https://lobby.gplansis.com</b>. Funciona no navegador do computador e do celular e pode ser instalado na tela inicial
+        (Android: menu ⋮ › “Instalar app”; iPhone: Compartilhar › “Adicionar à Tela de Início”).</p>
+      <table>
+        <tr><th>Onde</th><th>Para quem</th><th>O que faz</th></tr>
+        <tr><td>Site / app (início, agenda, minhas reservas, perfil)</td><td>Jogadores e alunos</td><td>Reservar, pagar, convidar, ver aulas, check-in</td></tr>
+        <tr><td><code>/admin</code> — Administração</td><td>Administradores</td><td>Operação completa do clube</td></tr>
+        <tr><td><code>/recepcao</code> — Leitor de check-in</td><td>Recepção (tablet)</td><td>Lê QR de reserva, aluno e professor com a câmera</td></tr>
+        <tr><td><code>/professor</code> — Área do professor</td><td>Professores com acesso</td><td>Aulas do dia, chamada, iniciar aula, anotações</td></tr>
+      </table>
+      <div class="tip"><b>Tema escuro:</b> o botão de sol/lua no cabeçalho alterna claro/escuro; em Perfil › Aparência dá para deixar “Automático”.</div>
+    </section>
+
+    <section id="perfis">
+      <h2><span class="n">2.</span> Perfis e acessos</h2>
+      <table>
+        <tr><th>Perfil</th><th>Pode</th><th>Não pode</th></tr>
+        <tr><td><span class="badge">Jogador</span></td><td>Reservar, pagar, convidar, cancelar as próprias reservas, ver aulas e frequência</td><td>Ver dados de outras pessoas</td></tr>
+        <tr><td><span class="badge">Professor</span></td><td>Ver as próprias aulas, fazer chamada, iniciar aula, anotar, ver os próprios alunos</td><td>Ver valores, cancelar aulas, acessar a administração</td></tr>
+        <tr><td><span class="badge">Administrador</span></td><td>Toda a operação: agenda, reservas, aulas, caixa, relatórios, configurações, redefinir senha de jogadores</td><td>Promover/rebaixar admins, redefinir senha de outro admin, limpar dados de exemplo</td></tr>
+        <tr><td><span class="badge">Admin master</span></td><td>Tudo o que o administrador faz + papéis de administrador, senha de admins e limpeza dos dados de exemplo</td><td>Ser rebaixado ou excluído</td></tr>
+      </table>
+      <div class="rule"><b>Regra:</b> o admin master é definido no servidor (<code>PADEL_MASTER_ADMINS</code>). Esse e-mail não pode ser cadastrado pela tela pública.</div>
+    </section>
+
+    <section id="site">
+      <h2><span class="n">3.</span> Site e app do jogador</h2>
+      <ul>
+        <li><b>Início:</b> dias da semana com horários livres, reserva rápida, carrossel de fotos das quadras, card do torneio (com contagem regressiva e “Quero participar”), card do iaVision, estrutura e horários.</li>
+        <li><b>Agenda:</b> grade quadra × horário, 60/90 min, preço calculado na hora (faixas de preço podem mudar no meio da reserva).</li>
+        <li><b>Minhas reservas:</b> próxima reserva com QR de check-in, histórico, “Repetir” e cancelamento.</li>
+        <li><b>Convite:</b> “Convidar pelo WhatsApp” envia uma mensagem formatada com quadra, data, vagas e valor por jogador; o link mostra uma prévia com a foto da quadra. Quem entra pelo convite vira jogador da reserva.</li>
+        <li><b>Termos e privacidade</b> em <code>/termos</code> (obrigatório aceitar no cadastro).</li>
+      </ul>
+    </section>
+
+    <section id="conta">
+      <h2><span class="n">4.</span> Conta, perfil e segurança</h2>
+      <ul>
+        <li><b>Cadastro:</b> nome, e-mail, WhatsApp (opcional), senha de 8+ caracteres, perfil de jogador opcional (categoria, lado, mão, cidade) e aceite dos termos.</li>
+        <li><b>Perfil:</b> estatísticas, parceiros frequentes, dados pessoais, perfil de jogador, minhas aulas (turmas, próximas aulas, frequência, mensalidades em aberto e QR de aluno), aparência, segurança e privacidade.</li>
+        <li><b>Segurança:</b> trocar senha exige a senha atual e desconecta os outros aparelhos; “Sair de todos os aparelhos”; 5 senhas erradas seguidas bloqueiam o login por 5 minutos.</li>
+        <li><b>LGPD:</b> “Baixar meus dados” (JSON) e “Excluir conta” — os dados pessoais são apagados e reservas/pagamentos ficam sem identificação, para a contabilidade.</li>
+      </ul>
+      <h3>Esqueci a senha (não há envio de e-mail)</h3>
+      <ol class="steps">
+        <li>O jogador fala com a recepção (o link “Esqueci minha senha” abre o WhatsApp do clube, se configurado).</li>
+        <li>Em <b>Admin › Usuários</b>, busque a pessoa e clique em <b>Redefinir senha</b>.</li>
+        <li>Passe a senha temporária mostrada (ela não aparece de novo). No próximo acesso a pessoa é obrigada a criar uma senha nova.</li>
+      </ol>
+    </section>
+
+    <section id="reservas">
+      <h2><span class="n">5.</span> Reservas e pagamentos</h2>
+      <table>
+        <tr><th>Forma</th><th>Como funciona</th><th>Situação</th></tr>
+        <tr><td>Pix</td><td>Gera QR/“copia e cola”. O horário fica seguro por 15 min; sem pagamento, expira sozinho.</td><td>Aguardando Pix → Confirmada/Pago</td></tr>
+        <tr><td>Cartão</td><td>Gateway simulado: aprova na hora.</td><td>Confirmada/Pago</td></tr>
+        <tr><td>No local</td><td>Confirma na hora e fica “a receber” até a recepção lançar o recebimento.</td><td>Confirmada/A receber</td></tr>
+      </table>
+      <ul>
+        <li><b>Cancelamento</b> grátis até 6 h antes (com estorno); depois disso cancela sem estorno. Cancelamento pela administração sempre estorna.</li>
+        <li>Limites: até 4 jogadores por quadra, até 3 reservas futuras por cliente, janela de 14 dias (a recepção pode reservar além desses limites).</li>
+        <li>Lembrete automático 2 h antes; notificações no sino; arquivo <code>.ics</code> para a agenda do celular.</li>
+      </ul>
+      <div class="warn"><b>Atenção:</b> enquanto não houver um provedor Pix real integrado, o botão “Simular pagamento” fica ligado para o fluxo funcionar. A integração usa o webhook <code>/api/payments/pix/webhook</code>.</div>
+    </section>
+
+    <section id="checkin">
+      <h2><span class="n">6.</span> Check-in por QR e recepção</h2>
+      <p>Cada QR leva um link. A recepção usa o leitor em <b><code>/recepcao</code></b> (botão “Leitor de check-in (câmera)” no topo da administração):</p>
+      <table>
+        <tr><th>QR</th><th>Onde a pessoa encontra</th><th>O que acontece ao ler</th></tr>
+        <tr><td>Reserva (quadra)</td><td>Minhas reservas / detalhe da reserva</td><td>Check-in da reserva (abre 1 h antes até o fim do jogo)</td></tr>
+        <tr><td>Aluno</td><td>Perfil › Minhas aulas</td><td>Presença na aula de agora (de 1 h antes até o fim); avisa mensalidade em aberto</td></tr>
+        <tr><td>Professor</td><td>Área do professor › Meu QR, ou enviado pelo admin</td><td>Registra a chegada e <b>inicia a aula</b> do horário</td></tr>
+      </table>
+      <ol class="steps">
+        <li>No tablet, abra <code>/recepcao</code>, permita a câmera e toque em <b>Tela cheia</b>. A tela fica acesa sozinha.</li>
+        <li>A pessoa aponta o QR para a câmera: verde = feito; amarelo = já feito ou fora do horário (mostra quando abre); vermelho = QR não reconhecido.</li>
+        <li>Sem câmera? Digite o código <code>PL-XXXXX</code> no campo ao lado ou use o botão Check-in na lista “Chegadas de hoje”.</li>
+      </ol>
+      <div class="tip"><b>Cartão de check-in em imagem:</b> reservas, aulas, alunos e professores podem baixar ou compartilhar (WhatsApp) uma imagem com o QR — útil para mostrar sem internet.</div>
+    </section>
+
+    <section id="painel">
+      <h2><span class="n">7.</span> Painel e agenda do dia</h2>
+      <ul>
+        <li><b>Painel:</b> receita recebida e a receber, ocupação, reservas, horas vendidas, receita por dia, ocupação por quadra, mapa de calor dia × hora, ranking de clientes e exportação CSV.</li>
+        <li><b>Agenda do dia:</b> reservas do dia com Check-in, Receber e Cancelar; check-in por código; criação e remoção de bloqueios (manutenção, eventos).</li>
+      </ul>
+    </section>
+
+    <section id="calendario">
+      <h2><span class="n">8.</span> Calendário</h2>
+      <p>Em <b>Admin › Calendário</b>, com três visões e navegação ‹ Hoje ›:</p>
+      <ul>
+        <li><b>Dia:</b> uma coluna por quadra, eventos no tamanho real, horários fechados hachurados e linha vermelha da hora atual.</li>
+        <li><b>Semana:</b> sete dias lado a lado com faixas Q1/Q2/Q3 (ou uma quadra, com o filtro).</li>
+        <li><b>Mês:</b> ocupação do dia (barra e %), número de reservas e aulas, primeiros eventos e faturamento; clique no dia para abrir a visão Dia.</li>
+      </ul>
+      <p>Clique num <b>horário livre</b> para reservar em nome de um cliente ou bloquear; clique numa <b>reserva</b>, <b>aula</b> ou <b>bloqueio</b> para ver detalhes e agir. Filtros por quadra e por tipo (reservas, aulas, bloqueios).</p>
+      <p>Cores: <span class="badge" style="background:var(--ok-bg);color:var(--ok-ink)">Pago</span> <span class="badge" style="background:var(--pink);color:var(--red-deep)">A receber</span> <span class="badge" style="background:var(--cream);color:var(--cream-ink)">Aguardando Pix</span> <span class="badge">Em quadra</span> · aulas na cor do professor.</p>
+    </section>
+
+    <section id="agendamentos">
+      <h2><span class="n">9.</span> Agendamentos e disponibilidade</h2>
+      <ul>
+        <li><b>Agendamentos:</b> todas as reservas por período, quadra, situação, pagamento e forma, com busca, totais (horas, valor, em aberto) e CSV.</li>
+        <li><b>Disponibilidade:</b> grade de 30 em 30 min (1, 3 ou 7 dias). Clique no livre para reservar/bloquear; durações que não cabem ficam desabilitadas.</li>
+      </ul>
+      <h3>Reservar pelo balcão</h3>
+      <ol class="steps">
+        <li>Clique no horário livre (Calendário ou Disponibilidade).</li>
+        <li>Escolha <b>Cliente cadastrado</b> (busca por nome, e-mail ou telefone) ou <b>Cliente novo (balcão)</b> com nome e WhatsApp.</li>
+        <li>Escolha a duração, os outros jogadores e o pagamento: <b>Fica a receber</b> ou <b>Recebido agora</b> (dinheiro, Pix no balcão, débito, crédito).</li>
+      </ol>
+    </section>
+
+    <section id="aulas">
+      <h2><span class="n">10.</span> Aulas e alunos</h2>
+      <h3>Professores</h3>
+      <p><b>Aulas › Professores › + Professor</b>: nome, WhatsApp, e-mail e cor na agenda. Cada professor tem um <b>QR de check-in</b> e pode receber <b>acesso à área do professor</b> (veja a seção 11).</p>
+      <h3>Turmas</h3>
+      <ol class="steps">
+        <li><b>Aulas › Turmas › + Nova turma</b>: nome, professor, quadra, dias da semana, início, duração, nível, vagas, mensalidade e valor da aula avulsa.</li>
+        <li>Ao salvar, o sistema cria as aulas das próximas 4 semanas e renova o calendário todo dia. Dias de clube fechado ou quadra ocupada são pulados e avisados.</li>
+        <li>Abra a turma para <b>matricular alunos</b> (cadastrados ou novos), pausar, reativar ou remover. A capacidade é respeitada pelo banco de dados.</li>
+      </ol>
+      <div class="rule"><b>Regra:</b> aula, reserva e bloqueio nunca ocupam a mesma quadra ao mesmo tempo. Para o jogador, o horário da aula aparece indisponível.</div>
+      <h3>Agenda de aulas e chamada</h3>
+      <ul>
+        <li><b>Aulas › Agenda de aulas</b> mostra a semana; clique numa aula para a <b>chamada</b>: Presente, Falta ou Justificada.</li>
+        <li><b>Presente</b> só a partir de 1 h antes do início; falta/justificada podem ser lançadas antes (aviso do aluno).</li>
+        <li><b>+ Aluno avulso</b> inclui alguém de fora da turma (gera a cobrança da aula avulsa, se houver valor).</li>
+        <li><b>Cancelar aula</b> pede motivo e avisa os alunos.</li>
+        <li><b>+ Aula particular</b>: professor, quadra, data, hora, valor por aluno e aluno.</li>
+      </ul>
+      <h3>Alunos e mensalidades</h3>
+      <ul>
+        <li><b>Alunos:</b> turmas, nível, frequência dos últimos 30 dias e valor em aberto.</li>
+        <li><b>Mensalidades:</b> escolha o mês e clique em <b>Gerar mensalidades do mês</b> (uma por matrícula ativa; rodar de novo não duplica). <b>Receber</b> lança no caixa do dia com a forma escolhida.</li>
+      </ul>
+    </section>
+
+    <section id="professor">
+      <h2><span class="n">11.</span> Área do professor</h2>
+      <ol class="steps">
+        <li>Em <b>Aulas › Professores</b>, clique em <b>Dar acesso</b> e informe o e-mail do professor.</li>
+        <li>Se o e-mail já tiver conta, ela é vinculada; se não, o sistema cria a conta e mostra uma <b>senha temporária</b> (use “Enviar acesso pelo WhatsApp”).</li>
+        <li>O professor entra em <b>lobby.gplansis.com/entrar</b>, troca a senha e cai direto em <code>/professor</code>.</li>
+      </ol>
+      <p>Na área: aulas de hoje com <b>Iniciar aula</b>, chamada com botões grandes, aluno avulso, <b>anotações da aula</b> (o admin vê na chamada), próximos dias, turmas, alunos com frequência e o próprio QR. Para retirar o acesso: <b>Acesso › Retirar acesso</b>.</p>
+    </section>
+
+    <section id="pagamentos">
+      <h2><span class="n">12.</span> Pagamentos</h2>
+      <ul>
+        <li><b>A receber:</b> reservas “no local” não pagas e Pix aguardando. <b>Receber</b> → escolha a forma → entra no caixa de hoje.</li>
+        <li><b>Movimento:</b> recebimentos e estornos do período (reservas e mensalidades), totais por forma e CSV.</li>
+        <li>Formas: Pix online, cartão online, dinheiro, Pix no balcão, débito e crédito.</li>
+      </ul>
+    </section>
+
+    <section id="fechamento">
+      <h2><span class="n">13.</span> Fechamento de caixa</h2>
+      <ol class="steps">
+        <li>Em <b>Admin › Fechamento</b>, escolha o dia (padrão: hoje). Confira o recebido por forma, os estornos e o <b>dinheiro esperado na gaveta</b>.</li>
+        <li>Conte a gaveta, digite o valor e clique em <b>Fechar caixa</b>. O sistema mostra sobra ou falta.</li>
+        <li>Depois de fechado, nenhum recebimento de balcão entra nesse dia. Pagamentos online continuam entrando e aparecem como “movimento após o fechamento”.</li>
+        <li>Para corrigir: <b>Reabrir caixa</b> com motivo (fica no histórico) e fechar de novo.</li>
+      </ol>
+      <div class="tip"><b>Dica:</b> o quadro “Fechamentos do mês” lista os dias com movimento ainda sem fechamento.</div>
+    </section>
+
+    <section id="relatorios">
+      <h2><span class="n">14.</span> Relatórios</h2>
+      <p><b>Admin › Relatórios:</b> locações, horas, ocupação, faturamento, ticket médio, recebido, a receber e estornos do período; gráfico diário e detalhamento por dia, quadra, dia da semana, horário, cliente, forma de pagamento e duração. Todos exportam CSV e podem ser impressos.</p>
+      <p>Para aulas, o resumo do mês fica no topo de <b>Aulas › Agenda de aulas</b> (alunos ativos, aulas, frequência e mensalidades).</p>
+    </section>
+
+    <section id="usuarios">
+      <h2><span class="n">15.</span> Usuários e admin master</h2>
+      <ul>
+        <li><b>Admin › Usuários:</b> busca por nome, e-mail ou telefone; categoria, locações, valor pago e último jogo.</li>
+        <li><b>+ Novo usuário:</b> nome, e-mail, WhatsApp, papel e categoria. A conta nasce com senha temporária (mostrada uma vez, com botão para enviar pelo WhatsApp); no primeiro acesso a pessoa cria a própria senha. Administradores só podem ser criados pelo admin master.</li>
+        <li><b>Redefinir senha</b> gera senha temporária (admin comum: jogadores; master: também administradores).</li>
+        <li><b>Tornar admin / Rebaixar</b>: somente o admin master.</li>
+        <li>Este <b>Manual do sistema</b> fica nesta aba e só aparece para administradores.</li>
+      </ul>
+    </section>
+
+    <section id="config">
+      <h2><span class="n">16.</span> Configurações</h2>
+      <ul>
+        <li><b>Preços:</b> faixas por dias da semana, feriados, horário, valor por hora, prioridade e promoção.</li>
+        <li><b>Regras:</b> cancelamento grátis (h), prazo do Pix (min), antecedência (dias), jogadores por quadra, reservas futuras por cliente, durações.</li>
+        <li><b>Contato e Pix:</b> WhatsApp do clube (usado em “Esqueci a senha” e no torneio), e-mail, texto da promoção, chave e nome do Pix.</li>
+        <li><b>Feriados:</b> data, nome e se o clube abre (aberto usa o horário de sábado).</li>
+        <li><b>Fotos das quadras:</b> escolha a foto de cada quadra (as mesmas giram no carrossel da página inicial).</li>
+        <li><b>Limpar dados de exemplo</b> (só master): apaga as contas de demonstração e tudo o que é delas, com prévia, confirmação “APAGAR” e senha. Não toca em dados reais.</li>
+      </ul>
+    </section>
+
+    <section id="rotinas">
+      <h2><span class="n">17.</span> Rotinas do dia a dia</h2>
+      <h3>Abertura</h3>
+      <ul><li>Ligar o tablet em <code>/recepcao</code> (tela cheia).</li><li>Conferir <b>Calendário › Dia</b> e <b>Agenda do dia</b>: reservas a receber e aulas do dia.</li></ul>
+      <h3>Durante o dia</h3>
+      <ul><li>Check-in pelo QR; receber pagamentos “no local” e mensalidades; reservas de balcão pelo Calendário.</li><li>Acompanhar o início das aulas (QR do professor ou “Iniciar aula” no celular dele).</li></ul>
+      <h3>Fechamento</h3>
+      <ul><li>Conferir “A receber” em Pagamentos, contar a gaveta e <b>Fechar caixa</b>.</li></ul>
+      <h3>Todo mês</h3>
+      <ul><li>Gerar as mensalidades no início do mês e cobrar as em aberto (Alunos › Em aberto).</li><li>Exportar os relatórios do mês anterior.</li></ul>
+    </section>
+
+    <section id="regras">
+      <h2><span class="n">18.</span> Regras de negócio (resumo)</h2>
+      <table>
+        <tr><th>Tema</th><th>Regra</th></tr>
+        <tr><td>Funcionamento padrão</td><td>Seg–Sex 12–13h e 14–23h · Sáb 9–21h · Dom fechado (configurável por feriados)</td></tr>
+        <tr><td>Sobreposição</td><td>Reserva, aula e bloqueio nunca se sobrepõem na mesma quadra (garantido pelo banco)</td></tr>
+        <tr><td>Pix</td><td>Horário seguro por 15 min; expira sozinho</td></tr>
+        <tr><td>Cancelamento</td><td>Grátis até 6 h antes, com estorno; admin sempre estorna</td></tr>
+        <tr><td>Check-in</td><td>De 1 h antes do início até o fim (reserva, aluno e professor)</td></tr>
+        <tr><td>Turmas</td><td>Capacidade máxima respeitada; calendário 4 semanas à frente</td></tr>
+        <tr><td>Caixa</td><td>Dia fechado não aceita recebimento de balcão; reabertura com motivo</td></tr>
+        <tr><td>Sessão</td><td>Trocar/redefinir senha encerra as outras sessões</td></tr>
+      </table>
+    </section>
+
+    <section id="problemas">
+      <h2><span class="n">19.</span> Solução de problemas</h2>
+      <table>
+        <tr><th>Situação</th><th>O que fazer</th></tr>
+        <tr><td>“O caixa de hoje já foi fechado”</td><td>Reabra em Fechamento (com motivo), lance e feche de novo.</td></tr>
+        <tr><td>Leitor não abre a câmera</td><td>Permita a câmera para o site nas configurações do navegador; use o campo de código enquanto isso.</td></tr>
+        <tr><td>“Cedo demais: o check-in abre às…”</td><td>Normal: check-in abre 1 h antes do horário.</td></tr>
+        <tr><td>Turma criada com dias “pulados”</td><td>A quadra estava reservada/bloqueada ou o clube fechado nesses dias; ajuste e use “Gerar” novamente.</td></tr>
+        <tr><td>Jogador esqueceu a senha</td><td>Usuários › Redefinir senha (seção 4).</td></tr>
+        <tr><td>Professor não vê a área</td><td>Confira em Aulas › Professores se ele tem acesso e se o professor está ativo.</td></tr>
+        <tr><td>Prévia antiga no WhatsApp</td><td>O WhatsApp guarda a prévia de cada link; convites novos já saem atualizados.</td></tr>
+      </table>
+    </section>
+  </main>
+
+  <footer>Padel Lobby · Rio Grande, RS — Desenvolvido por <a href="https://gplansis.com" target="_blank" rel="noopener">GPlanSiS|Group</a></footer>
+</div>
+</body>
+</html>

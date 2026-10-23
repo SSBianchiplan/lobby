@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, type Availability, type CalendarDay, type Club } from "../api";
 import { useAuth } from "../auth";
 import { useBooking } from "../booking";
-import { BottomNav, MobileHeader, SiteFooter, SiteHeader, Spinner } from "../components/Layout";
+import { BottomNav, DevCredit, MobileHeader, SiteFooter, SiteHeader, Spinner } from "../components/Layout";
 import { AiVisionCard } from "../components/AiVisionCard";
 import { CourtCarousel } from "../components/CourtCarousel";
 import { TournamentCard } from "../components/TournamentCard";
@@ -283,6 +283,7 @@ function HomeMobile() {
         </section>
       )}
       <div style={{ margin: "16px 20px 0" }}><AiVisionCard compact /></div>
+      <DevCredit mobile />
       <BottomNav />
     </div>
   );

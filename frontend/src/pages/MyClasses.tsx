@@ -48,7 +48,7 @@ export default function MyClasses() {
                   {d.upcoming.map((u) => (
                     <li key={u.id}>
                       <span className="class-time" style={{ width: 70 }}>{dayLabel(isoDay(new Date(u.starts_at)))}<small>{hhmm(u.starts_at)}</small></span>
-                      <span style={{ flex: 1, minWidth: 0 }}><strong>{u.name}</strong><br /><small className="muted">{u.court_name} · {coachLabel(u.coach_name)}</small></span>
+                      <span style={{ flex: "1 1 140px", minWidth: 0 }}><strong>{u.name}</strong><br /><small className="muted">{u.court_name} · {coachLabel(u.coach_name)}</small></span>
                       <button type="button" className="btn btn-soft btn-sm" onClick={() => shareTicket({
                         kind: "CHECK-IN DA AULA", title: u.name, subtitle: `${dayLabel(isoDay(new Date(u.starts_at)))} · ${hhmm(u.starts_at)}–${hhmm(u.ends_at)}`, status: "MARCADA",
                         rows: [["Aluno", user?.name ?? ""], ["Professor", u.coach_name], ["Quadra", `${u.court_name} · Padel Lobby`]],

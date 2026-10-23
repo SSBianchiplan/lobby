@@ -156,3 +156,53 @@ async def test_invite_link_preview_for_whatsapp(client):
     assert 'og:title" content="Padel Lobby — Reservas"' in generic
     await client.post(f"/api/reservations/{r['code']}/cancel", json={}, headers=ana)
     assert "Bora jogar" not in (await client.get(f"/convite/{r['invite_token']}")).text
+
+
+async def test_calendar_events_merge_reservations_classes_blocks(client):
+    from datetime import timedelta
+
+    from .test_reservations import body, next_weekday
+    adm = await admin(client)
+    ana = await make_user(client)
+    d = next_weekday(3)
+    r = (await client.post("/api/reservations", json=body(d, "19:00", court=1, method="card"), headers=ana)).json()
+    coach = (await client.post("/api/admin/coaches", json={"name": "Prof Cal"}, headers=adm)).json()["id"]
+    await client.post("/api/admin/class-sessions", json={"coach_id": coach, "court_id": 2, "date": d.isoformat(), "start": "20:00", "title": "Aula X"}, headers=adm)
+    await client.post("/api/admin/blocks", json={"court_id": 3, "date": d.isoformat(), "start": "14:00", "end": "15:00", "reason": "Pintura"}, headers=adm)
+    cal = (await client.get(f"/api/admin/calendar?start={d}&end={d + timedelta(days=1)}", headers=adm)).json()
+    kinds = [(e["type"], e["court_id"], e["start"][11:16]) for e in cal["events"]]
+    assert kinds == [("block", 3, "14:00"), ("reservation", 1, "19:00"), ("class", 2, "20:00")]
+    assert cal["events"][1]["id"] == r["code"] and cal["days"][0]["intervals"] == [["12:00", "13:00"], ["14:00", "23:00"]]
+    only2 = (await client.get(f"/api/admin/calendar?start={d}&end={d + timedelta(days=1)}&court_id=2", headers=adm)).json()
+    assert [e["type"] for e in only2["events"]] == ["class"]
+    assert (await client.get(f"/api/admin/calendar?start={d}&end={d + timedelta(days=60)}", headers=adm)).status_code == 422
+
+
+async def test_system_manual_is_admin_only(client):
+    adm = await admin(client)
+    ana = await make_user(client)
+    assert (await client.get("/api/admin/manual")).status_code == 401
+    assert (await client.get("/api/admin/manual", headers=ana)).status_code == 403
+    r = await client.get("/api/admin/manual", headers=adm)
+    assert r.status_code == 200 and "Manual do Sistema" in r.text and 'id="fechamento"' in r.text and "GPlanSiS|Group" in r.text
+    from app.main import DIST
+    if DIST.exists():  # e não existe cópia pública
+        assert "Manual do Sistema" not in (await client.get("/manual.html")).text
+
+
+async def test_admin_creates_users_with_temporary_password(client):
+    adm = await admin(client)
+    r = await client.post("/api/admin/users", json={"name": "Nova Jogadora", "email": "Nova@Ex.com", "phone": "(53) 98888-0000", "level": "5"}, headers=adm)
+    assert r.status_code == 201, r.text
+    assert r.json()["email"] == "nova@ex.com" and r.json()["role"] == "player" and r.json()["temporary_password"]
+    login = (await client.post("/api/auth/login", json={"email": "nova@ex.com", "password": r.json()["temporary_password"]})).json()
+    assert login["user"]["must_change_password"] is True and login["user"]["level"] == "5"
+    assert (await client.post("/api/admin/users", json={"name": "Dup", "email": "nova@ex.com"}, headers=adm)).status_code == 409
+    # admin comum não cria admin; master cria
+    assert (await client.post("/api/admin/users", json={"name": "Outro Admin", "email": "oa@ex.com", "role": "admin"}, headers=adm)).status_code == 403
+    async with db.pool().acquire() as conn:
+        await conn.execute("INSERT INTO users (name, email, password_hash, role) VALUES ('Master', $1, $2, 'admin')", MASTER, hash_password("master123"))
+    m = {"Authorization": f"Bearer {(await client.post('/api/auth/login', json={'email': MASTER, 'password': 'master123'})).json()['token']}"}
+    assert (await client.post("/api/admin/users", json={"name": "Outro Admin", "email": "oa@ex.com", "role": "admin"}, headers=m)).json()["role"] == "admin"
+    ana = await make_user(client)
+    assert (await client.post("/api/admin/users", json={"name": "X Y", "email": "xy@ex.com"}, headers=ana)).status_code == 403

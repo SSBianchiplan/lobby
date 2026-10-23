@@ -124,9 +124,19 @@ export function SiteFooter() {
         {wa ? <a href={wa}>WhatsApp</a> : <span style={{ fontWeight: 600 }}>WhatsApp [TELEFONE]</span>}
         <Link to="/termos">Termos e privacidade</Link>
         <span style={{ marginLeft: "auto", color: "#BDB6B6", fontWeight: 500 }}>© {new Date().getFullYear()} Padel Lobby · Rio Grande, RS</span>
+        <DevCredit />
       </div>
     </footer>
   );
 }
 
 export const Spinner = () => <div className="spinner" role="status" aria-label="Carregando" />;
+
+/** Crédito do desenvolvedor (rodapé da web e fim das telas do celular). */
+export function DevCredit({ mobile = false }: { mobile?: boolean }) {
+  return (
+    <p className={mobile ? "dev-credit mobile" : "dev-credit"}>
+      Desenvolvido por <a href="https://gplansis.com" target="_blank" rel="noopener">GPlanSiS|Group</a>
+    </p>
+  );
+}
