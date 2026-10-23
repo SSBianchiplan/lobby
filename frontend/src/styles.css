@@ -425,8 +425,10 @@ button.cal-head { cursor: pointer; }
 .bc-tip strong { font-size: 16px; font-weight: 900; }
 .bc-tip span { color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .bc-tip em { font-style: normal; font-size: 11px; color: var(--red); font-weight: 700; margin-top: 2px; }
-.bc-x { display: flex; gap: 2px; margin-left: 68px; font-size: 11px; font-weight: 700; color: var(--muted); }
-.bc-x span { flex: 1; min-width: 3px; text-align: center; white-space: nowrap; overflow: visible; }
+.bc-x { position: relative; height: 18px; margin-left: 68px; margin-top: 4px; font-size: 11px; font-weight: 700; color: var(--muted); }
+.bc-x span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.bc-x span[data-edge="start"] { transform: translateX(min(-50%, 0px)); left: 0 !important; }
+.bc-x span[data-edge="end"] { transform: translateX(-100%); left: 100% !important; }
 .heat .cell { cursor: pointer; border: 0; padding: 0; }
 .heat .cell:hover, .heat .cell:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 

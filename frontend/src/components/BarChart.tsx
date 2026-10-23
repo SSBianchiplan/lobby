@@ -90,7 +90,10 @@ export function BarChart({ data, format, short = format, height = 200, series = 
         </div>
       </div>
       <div className="bc-x" aria-hidden="true">
-        {data.map((d, i) => <span key={d.key}>{i % every === 0 ? d.label.split(" ").slice(-1)[0] : ""}</span>)}
+        {data.map((d, i) => i % every !== 0 ? null : (
+          <span key={d.key} style={{ left: `${((i + 0.5) / data.length) * 100}%` }}
+            data-edge={i === 0 ? "start" : i >= data.length - every ? "end" : undefined}>{d.label.split(" ").slice(-1)[0]}</span>
+        ))}
       </div>
     </figure>
   );
