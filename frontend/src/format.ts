@@ -56,3 +56,10 @@ export const parseCoachToken = (text: string) => text.match(/\/professor\/([0-9a
 export const coachLabel = (name: string) => (/^prof(\.|essor|essora)?\s/i.test(name) ? name : `prof. ${name}`);
 /** Primeiro nome, pulando títulos ("Prof. Lucas Tavares" → "Lucas"). */
 export const firstName = (name: string) => name.replace(/^prof(\.|essor|essora)?\s+/i, "").split(" ")[0] ?? name;
+
+/** Valor curto para eixos de gráfico: R$ 950, R$ 1,2 mil, R$ 15 mil. */
+export const moneyShort = (cents: number) => {
+  const r = cents / 100;
+  if (r >= 1000) return `R$ ${(r / 1000).toLocaleString("pt-BR", { maximumFractionDigits: r >= 10000 ? 0 : 1 })} mil`;
+  return `R$ ${Math.round(r)}`;
+};

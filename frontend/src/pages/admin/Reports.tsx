@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "../../api";
 import { Spinner } from "../../components/Layout";
-import { money, PAY_LABEL } from "../../format";
+import { BarChart } from "../../components/BarChart";
+import { money, moneyShort, PAY_LABEL } from "../../format";
 import { useClub } from "../../hooks";
 import { downloadCsv, hours, Kpi, pct, PeriodPicker, Panel, periodLabel, usePeriod, WD_SHORT } from "./shared";
 
@@ -22,6 +24,7 @@ const label = (g: GroupKey, v: Group) =>
   g === "weekday" ? WD_SHORT[Number(v.label)] : g === "method" ? PAY_LABEL[String(v.label)] ?? v.label : String(v.label);
 
 export default function Reports() {
+  const navigate = useNavigate();
   const club = useClub().data;
   const period = usePeriod("month");
   const [court, setCourt] = useState("");
@@ -32,7 +35,6 @@ export default function Reports() {
   const d = q.data;
   const rows = d ? d[`by_${group}`] : [];
   const max = Math.max(1, ...rows.map((r) => r.gross_cents));
-  const maxDay = Math.max(1, ...(d?.by_day.map((r) => r.gross_cents) ?? [1]));
   const courtName = club?.courts.find((c) => String(c.id) === court)?.name;
 
   return (
@@ -65,13 +67,9 @@ export default function Reports() {
           </div>
 
           <Panel title="Faturamento por dia">
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 160 }} role="img" aria-label={`Faturamento diário, maior valor ${money(maxDay)}`}>
-              {d.by_day.map((x) => (
-                <div key={String(x.key)} title={`${x.label} · ${money(x.gross_cents)} · ${x.rentals} locações`}
-                  style={{ flex: 1, height: `${Math.max(2, (x.gross_cents / maxDay) * 100)}%`, background: "var(--red)", borderRadius: "4px 4px 0 0", minWidth: 4 }} />
-              ))}
-            </div>
-            {!d.by_day.length && <p className="empty">Sem locações no período.</p>}
+            <BarChart data={d.by_day.map((x) => ({ key: String(x.key), label: String(x.label), value: x.gross_cents, detail: `${x.rentals} locações · ${hours(x.minutes)} · ${money(x.paid_cents)} recebido` }))}
+              format={money} short={moneyShort} series="Faturamento" selectHint="clique para ver o dia no calendário"
+              onSelect={(day) => navigate(`/admin/calendario?dia=${day}&visao=dia`)} />
           </Panel>
 
           <Panel title="Detalhamento" actions={

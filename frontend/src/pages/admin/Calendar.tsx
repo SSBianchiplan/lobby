@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "../../api";
 import { Spinner } from "../../components/Layout";
@@ -55,8 +56,12 @@ function evClass(e: Ev) {
 /** Calendário avançado do admin: Dia (quadras em colunas), Semana (dias com faixas por quadra) e Mês (ocupação). */
 export default function Calendar() {
   const mobile = useIsMobile();
-  const [view, setView] = useState<View>(() => (window.innerWidth <= 760 ? "day" : "week"));
-  const [anchor, setAnchor] = useState(() => isoDay(new Date()));
+  const [params] = useSearchParams();
+  const [view, setView] = useState<View>(() => {
+    const v = params.get("visao");
+    return v === "dia" ? "day" : v === "mes" ? "month" : v === "semana" ? "week" : window.innerWidth <= 760 ? "day" : "week";
+  });
+  const [anchor, setAnchor] = useState(() => (/^\d{4}-\d{2}-\d{2}$/.test(params.get("dia") ?? "") ? params.get("dia")! : isoDay(new Date())));
   const [court, setCourt] = useState<number | "">("");
   const [types, setTypes] = useState({ reservation: true, class: true, block: true });
   const [start, end] = range(view, anchor);

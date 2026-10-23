@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Link, NavLink, Route, Routes } from "react-router-dom";
+import { Link, NavLink, Route, Routes, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, type Reservation } from "../../api";
 import { BottomNav, SiteHeader, Spinner } from "../../components/Layout";
 import { useToast } from "../../components/Toast";
-import { dayLabel, isoDay, money } from "../../format";
+import { BarChart } from "../../components/BarChart";
+import { dayLabel, isoDay, money, moneyShort } from "../../format";
 import { useClub } from "../../hooks";
 import Bookings from "./Bookings";
 import Calendar from "./Calendar";
@@ -78,11 +79,11 @@ function monthRange(offset: number) {
 }
 
 function Dashboard() {
+  const navigate = useNavigate();
   const [offset, setOffset] = useState(0);
   const range = monthRange(offset);
   const q = useQuery({ queryKey: ["admin", "dash", range.start], queryFn: () => api<Dash>(`/api/admin/dashboard?start=${range.start}&end=${range.end}`) });
   const d = q.data;
-  const maxDaily = Math.max(1, ...(d?.daily.map((x) => x.revenue_cents) ?? [1]));
   const maxHeat = Math.max(1, ...(d?.heat.map((x) => x.n) ?? [1]));
   const hours = Array.from({ length: 15 }, (_, i) => 9 + i);
   const wds = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
@@ -109,14 +110,11 @@ function Dashboard() {
           <div className="row">
             <section className="card card-pad grow-2" style={{ boxShadow: "none" }}>
               <h2 className="italic-title" style={{ fontSize: 18 }}>Receita por dia</h2>
-              <div style={{ marginTop: 16, display: "flex", alignItems: "flex-end", gap: 3, height: 160 }} role="img"
-                aria-label={`Receita diária, maior valor ${money(maxDaily)}`}>
-                {d.daily.map((x) => (
-                  <div key={x.day} title={`${dayLabel(x.day)} · ${money(x.revenue_cents)} · ${x.bookings} reservas`}
-                    style={{ flex: 1, height: `${Math.max(2, (x.revenue_cents / maxDaily) * 100)}%`, background: "var(--red)", borderRadius: "4px 4px 0 0", minWidth: 4 }} />
-                ))}
+              <div style={{ marginTop: 14 }}>
+                <BarChart data={d.daily.map((x) => ({ key: x.day, label: dayLabel(x.day), value: x.revenue_cents, detail: `${x.bookings} reservas` }))}
+                  format={money} short={moneyShort} series="Receita" selectHint="clique para ver o dia no calendário"
+                  onSelect={(day) => navigate(`/admin/calendario?dia=${day}&visao=dia`)} />
               </div>
-              {!d.daily.length && <p className="empty">Sem reservas no período.</p>}
             </section>
             <section className="card card-pad grow-1" style={{ boxShadow: "none" }}>
               <h2 className="italic-title" style={{ fontSize: 18 }}>Por quadra</h2>
@@ -146,7 +144,7 @@ function Dashboard() {
                     <span style={{ alignSelf: "center" }}>{w}</span>
                     {hours.map((h) => {
                       const n = d.heat.find((x) => x.weekday === i + 1 && x.hour === h)?.n ?? 0;
-                      return <div key={h} className="cell" title={`${w} ${h}h · ${n} reservas`}
+                      return <div key={h} className="cell" tabIndex={0} role="img" aria-label={`${w} ${h}h: ${n} reservas`} title={`${w} ${h}h · ${n} reservas`}
                         style={{ background: n ? `rgba(200,16,46,${0.12 + 0.88 * (n / maxHeat)})` : "var(--bg)" }} />;
                     })}
                   </div>

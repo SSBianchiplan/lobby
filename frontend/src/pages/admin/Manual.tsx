@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../api";
 import { Spinner } from "../../components/Layout";
 import { useTheme } from "../../components/Theme";
+import { useIsMobile } from "../../hooks";
 
 const load = () => api<string>("/api/admin/manual");
 
@@ -29,8 +30,18 @@ export function ManualCard() {
 }
 
 /** Manual dentro do sistema, no tema atual. */
+/** Ajusta a altura da moldura ao conteúdo (inclusive quando o sumário abre/fecha). */
+function fit(frame: HTMLIFrameElement) {
+  const doc = frame.contentDocument;
+  if (!doc) return;
+  const set = () => { frame.style.height = `${doc.documentElement.scrollHeight}px`; };
+  set();
+  new ResizeObserver(set).observe(doc.body);
+}
+
 export default function Manual() {
   const { dark } = useTheme();
+  const mobile = useIsMobile();
   const q = useQuery({ queryKey: ["admin", "manual"], queryFn: load, staleTime: 10 * 60_000 });
   if (!q.data) return <Spinner />;
   const html = q.data.replace('<html lang="pt-BR">', `<html lang="pt-BR" data-theme="${dark ? "dark" : "light"}">`)
@@ -44,8 +55,10 @@ export default function Manual() {
           <button className="btn btn-outline btn-sm" onClick={() => downloadManual(q.data!)}>Baixar (.html)</button>
         </div>
       </div>
+      {/* celular: a moldura cresce até o conteúdo (uma rolagem só); desktop: altura fixa com sumário lateral fixo */}
       <iframe id="manual-frame" title="Manual do sistema" srcDoc={html} sandbox="allow-same-origin allow-popups allow-modals"
-        style={{ width: "100%", height: "calc(100dvh - 220px)", minHeight: 520, border: 0, borderRadius: 20, background: "var(--bg)" }} />
+        onLoad={(e) => { if (mobile) fit(e.currentTarget); }}
+        style={{ width: "100%", height: mobile ? 800 : "calc(100dvh - 220px)", minHeight: mobile ? 0 : 520, border: 0, borderRadius: mobile ? 16 : 20, background: "var(--bg)" }} />
     </div>
   );
 }

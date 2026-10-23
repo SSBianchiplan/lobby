@@ -51,7 +51,32 @@
   .steps li { counter-increment: s; position: relative; padding-left: 38px; margin: 10px 0; }
   .steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 26px; height: 26px; border-radius: 13px; background: var(--red); color: #fff; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
   footer { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 13px; }
-  @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; } main section { padding: 20px; } h1 { font-size: 26px; } }
+  details.toc-m { display: none; }
+  @media (max-width: 860px) {
+    body { font-size: 15px; }
+    .wrap { grid-template-columns: 1fr; gap: 12px; padding: 12px 12px 40px; }
+    header.top { padding: 20px; border-radius: 18px; }
+    h1 { font-size: 23px; }
+    nav.toc { display: none; }
+    details.toc-m { display: block; background: var(--surface); border-radius: 16px; padding: 12px 16px; font-size: 14px; }
+    details.toc-m summary { font-weight: 800; cursor: pointer; padding: 4px 0; }
+    details.toc-m ol { margin: 8px 0 4px; padding-left: 20px; columns: 2; column-gap: 16px; }
+    details.toc-m li { margin: 3px 0; break-inside: avoid; }
+    details.toc-m a { color: var(--ink); text-decoration: none; font-weight: 600; }
+    main section { padding: 18px 16px; border-radius: 16px; margin-bottom: 12px; }
+    h2 { font-size: 20px; }
+    h3 { font-size: 16px; }
+    ul, ol { padding-left: 18px; }
+    /* tabelas viram cartões: 1ª coluna é o título, as demais vêm embaixo */
+    table, tbody, tr, td { display: block; width: 100%; }
+    table tr:first-child:has(th) { display: none; }
+    tr { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin-bottom: 8px; }
+    td { border: 0; padding: 2px 0; }
+    td:first-child { font-weight: 800; }
+    .steps li { padding-left: 34px; }
+    footer { padding: 0 8px; }
+  }
+  @media (max-width: 420px) { details.toc-m ol { columns: 1; } }
   @media print {
     body { background: #fff; } nav.toc { display: none; } .wrap { display: block; max-width: none; padding: 0; }
     header.top { color: #000; background: none; border: 2px solid #C8102E; } main section { break-inside: avoid-page; border: 1px solid #ddd; }
@@ -64,6 +89,32 @@
     <h1>Manual do Sistema · Padel Lobby</h1>
     <p>Reservas de quadras, aulas, recepção, caixa e relatórios · versão de 23/10/2026 · uso interno da administração</p>
   </header>
+
+  <details class="toc-m">
+    <summary>Sumário · 20 seções</summary>
+    <ol>
+        <li><a href="#visao">Visão geral</a></li>
+        <li><a href="#perfis">Perfis e acessos</a></li>
+        <li><a href="#site">Site e app do jogador</a></li>
+        <li><a href="#conta">Conta, perfil e segurança</a></li>
+        <li><a href="#reservas">Reservas e pagamentos</a></li>
+        <li><a href="#checkin">Check-in por QR e recepção</a></li>
+        <li><a href="#painel">Painel e agenda do dia</a></li>
+        <li><a href="#calendario">Calendário</a></li>
+        <li><a href="#agendamentos">Agendamentos e disponibilidade</a></li>
+        <li><a href="#aulas">Aulas e alunos</a></li>
+        <li><a href="#professor">Área do professor</a></li>
+        <li><a href="#pagamentos">Pagamentos</a></li>
+        <li><a href="#fechamento">Fechamento de caixa</a></li>
+        <li><a href="#relatorios">Relatórios</a></li>
+        <li><a href="#usuarios">Usuários e admin master</a></li>
+        <li><a href="#acessos">Acessos (logs)</a></li>
+        <li><a href="#config">Configurações</a></li>
+        <li><a href="#rotinas">Rotinas do dia a dia</a></li>
+        <li><a href="#regras">Regras de negócio</a></li>
+        <li><a href="#problemas">Solução de problemas</a></li>
+      </ol>
+  </details>
 
   <nav class="toc" aria-label="Sumário">
     <strong>SUMÁRIO</strong>
@@ -184,6 +235,7 @@
       <h2><span class="n">7.</span> Painel e agenda do dia</h2>
       <ul>
         <li><b>Painel:</b> receita recebida e a receber, ocupação, reservas, horas vendidas, receita por dia, ocupação por quadra, mapa de calor dia × hora, ranking de clientes e exportação CSV.</li>
+        <li><b>Gráficos interativos</b> (Painel, Relatórios e Acessos): passe o mouse ou toque numa barra para ver o valor, a data e o detalhe; a linha tracejada é a média do período. Clique na barra (no celular, toque duas vezes) para abrir aquele dia no Calendário. Também funciona pelo teclado (Tab e setas).</li>
         <li><b>Agenda do dia:</b> reservas do dia com Check-in, Receber e Cancelar; check-in por código; criação e remoção de bloqueios (manutenção, eventos).</li>
       </ul>
     </section>

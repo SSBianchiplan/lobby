@@ -2,7 +2,9 @@ import { useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "../../api";
+import { BarChart } from "../../components/BarChart";
 import { Spinner } from "../../components/Layout";
+import { dayLabel } from "../../format";
 import { Kpi, Panel, PeriodPicker, periodLabel, usePeriod } from "./shared";
 
 type Group = { key: string | number; views: number; visitors: number };
@@ -74,9 +76,7 @@ function VisitorsView() {
   const q = useQuery({ queryKey: ["admin", "logs", "visitors", start, end, bots], placeholderData: keepPreviousData, refetchInterval: 60_000,
     queryFn: () => api<Visitors>(`/api/admin/logs/visitors?start=${start}&end=${end}${bots ? "&bots=true" : ""}`) });
   const d = q.data;
-  const maxDay = Math.max(1, ...(d?.by_day.map((x) => x.views) ?? [1]));
   const hours = Array.from({ length: 24 }, (_, h) => d?.by_hour.find((x) => Number(x.key) === h)?.views ?? 0);
-  const maxHour = Math.max(1, ...hours);
   return (
     <>
       <div className="between" style={{ flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
@@ -92,15 +92,8 @@ function VisitorsView() {
             <Kpi label="COM LOGIN" value={d.logged} sub={`${d.bot_views} acessos de robôs filtrados`} />
           </div>
           <Panel title="Visitas por dia">
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 150 }} role="img" aria-label="Visualizações por dia">
-              {d.by_day.map((x) => (
-                <div key={x.day} title={`${x.day.split("-").reverse().slice(0, 2).join("/")} · ${x.views} visualizações · ${x.visitors} visitantes`}
-                  style={{ flex: 1, minWidth: 4, height: `${Math.max(3, (x.views / maxDay) * 100)}%`, background: "var(--red)", borderRadius: "4px 4px 0 0", position: "relative" }}>
-                  <i style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: `${(x.visitors / Math.max(1, x.views)) * 100}%`, background: "var(--ball)", borderRadius: 3 }} />
-                </div>
-              ))}
-            </div>
-            {!d.by_day.length ? <p className="empty">Sem visitas no período.</p> : <p className="muted" style={{ fontSize: 12, fontWeight: 700, marginTop: 6 }}>Vermelho: visualizações · amarelo: visitantes</p>}
+            <BarChart data={d.by_day.map((x) => ({ key: x.day, label: dayLabel(x.day), value: x.views, value2: x.visitors }))}
+              format={(n) => `${Math.round(n)} visualizações`} short={(n) => String(Math.round(n))} series="Visualizações" series2="Visitantes" height={170} />
           </Panel>
           <div className="log-grid">
             <Panel title="Páginas mais vistas"><Bars items={d.pages} label={(k) => String(k)} /></Panel>
@@ -109,10 +102,8 @@ function VisitorsView() {
             <Panel title="Navegadores"><Bars items={d.browsers} label={(k) => String(k)} /></Panel>
             <Panel title="Sistemas"><Bars items={d.os} label={(k) => String(k)} /></Panel>
             <Panel title="Horário das visitas">
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 110 }} role="img" aria-label="Visitas por hora do dia">
-                {hours.map((n, h) => <div key={h} title={`${h}h · ${n}`} style={{ flex: 1, height: `${Math.max(2, (n / maxHour) * 100)}%`, background: n ? "var(--red)" : "var(--off-bg)", borderRadius: 2 }} />)}
-              </div>
-              <div className="between muted" style={{ fontSize: 11, fontWeight: 700, marginTop: 4 }}><span>0h</span><span>12h</span><span>23h</span></div>
+              <BarChart data={hours.map((n, h) => ({ key: String(h), label: `${h}h`, value: n }))} average={false}
+                format={(n) => `${Math.round(n)} visualizações`} short={(n) => String(Math.round(n))} series="Visualizações" height={130} />
             </Panel>
           </div>
           <Panel title="Visitas recentes">
