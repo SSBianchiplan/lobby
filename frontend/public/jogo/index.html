@@ -198,9 +198,9 @@ kbd{font-family:var(--body);font-size:11.5px;font-weight:700;border:1px solid va
 </aside>
 
 <aside id="coach" class="panel" aria-live="polite">
-  <div class="avatar" aria-hidden="true">TC</div>
+  <div class="avatar" aria-hidden="true">FC</div>
   <div>
-    <div class="who">Treinador Correia<em>sênior, sem rodeio</em></div>
+    <div class="who">Treinador Fabricio Correia<em>sênior, sem rodeio</em></div>
     <span id="coachTag" class="tip">Aquecimento</span>
     <div id="coachText">Quadra fechada, vidro limpo, rede a 0,88 m. Não quero ninguém parado na terra de ninguém. Vamos.</div>
   </div>
@@ -215,7 +215,7 @@ kbd{font-family:var(--body);font-size:11.5px;font-weight:700;border:1px solid va
   <h2 id="xTitle">Rede</h2>
   <div class="measure" id="xMeasure"></div>
   <p id="xRule"></p>
-  <div class="says"><strong>Treinador Correia</strong><span id="xCoach"></span></div>
+  <div class="says"><strong>Treinador Fabricio Correia</strong><span id="xCoach"></span></div>
   <div class="row">
     <button class="btn" id="xPrev">Anterior</button>
     <button class="btn pri" id="xNext">Próximo ponto</button>
@@ -1373,7 +1373,7 @@ function showMatchOver(){
   const verdict=won?'Ganhou. Agora assiste ao replay e me diz onde você ficou parado, porque ficou.':'Perdeu. O placar não mente: menos pressa, mais rede, zero tempo na terra de ninguém.';
   card.innerHTML=`<h1>${won?'Vitória da sua dupla':'Vitória dos rivais'}<span>${sets}</span></h1>
   <div class="stats"><span>Pontos da sua dupla</span><b>${stats.pts[0]}</b><span>Pontos dos rivais</span><b>${stats.pts[1]}</b><span>Seus golpes</span><b>${stats.hits}</b><span>Golpes no tempo certo</span><b>${stats.clean}</b><span>Avisos de terra de ninguém</span><b>${stats.nml}</b><span>Semente</span><b>${SEED}</b></div>
-  <p class="lead"><strong>Treinador Correia:</strong> ${verdict}</p>
+  <p class="lead"><strong>Treinador Fabricio Correia:</strong> ${verdict}</p>
   <div class="actions"><button class="btn pri" id="mAgain">Nova partida</button><button class="btn" id="mExp3">Explorar a quadra</button></div>`;
   coach(won?'good':'bad','Fim de jogo',verdict);
   $('#mAgain').onclick=()=>{ card.innerHTML=card.dataset.orig; bindMenu(); newMatch(); };
