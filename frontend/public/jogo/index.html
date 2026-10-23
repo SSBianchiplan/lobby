@@ -150,7 +150,91 @@ kbd{font-family:var(--body);font-size:11.5px;font-weight:700;border:1px solid va
   .opt{grid-template-columns:1fr}
   .tools{gap:4px;max-width:46vw}
   .tools .btn{font-size:11.5px;padding:6px 8px}
-  #bVoice,#bPause{display:none}
+  #bVoice,#bExplore{display:none}
+  #coach .who em{display:none}
+  #coachText{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+}
+/* menu hambúrguer (celular): placar + ☰ no topo; os botões ficam na folha */
+#bMenu{display:none;font-size:20px;line-height:1;padding:8px 13px}
+#sheet{position:fixed;right:calc(env(safe-area-inset-right,0px) + 10px);top:calc(env(safe-area-inset-top,0px) + 58px);z-index:8;border-radius:14px;padding:8px;display:grid;gap:6px;min-width:200px;max-height:calc(100% - 80px);overflow:auto}
+#sheet .btn{text-align:left;font-size:15px;padding:11px 14px;box-shadow:none}
+#sheet .btn[disabled]{opacity:.45}
+@media (max-width:820px), (max-height:500px){
+  .tools{display:none!important}
+  #bMenu{display:block;margin-left:auto}
+  #score{margin:0}
+  /* treinador no alto, abaixo do placar, e recolhe para a bolinha depois de alguns segundos */
+  #coach{top:calc(env(safe-area-inset-top,0px) + 96px);bottom:auto!important;left:calc(env(safe-area-inset-left,0px) + 10px)!important;right:auto!important;margin:0!important;width:min(420px,calc(100% - 20px))!important;cursor:pointer}
+  #coach.min{width:auto!important;padding:4px;border-radius:50%}
+  #coach.min > div:not(.avatar){display:none}
+  #coach.min .avatar{box-shadow:0 0 0 3px var(--ball)}
+}
+@media (max-height:500px) and (orientation:landscape){
+  #coach{top:calc(env(safe-area-inset-top,0px) + 6px);left:calc(env(safe-area-inset-left,0px) + 200px)!important;width:auto!important;right:calc(env(safe-area-inset-right,0px) + 70px)!important;max-width:460px}
+  #coach.min{left:calc(env(safe-area-inset-left,0px) + 200px)!important;right:auto!important}
+  #sheet{top:calc(env(safe-area-inset-top,0px) + 52px);grid-template-columns:1fr 1fr;max-height:calc(100% - 64px)}
+}
+/* celular em pé: menu compacto para "Começar partida" aparecer sem rolar */
+@media (max-width:520px){
+  #menu{padding:calc(env(safe-area-inset-top,0px) + 10px) 10px calc(env(safe-area-inset-bottom,0px) + 10px)}
+  .card{padding:16px}
+  .card h1{font-size:32px}
+  .card p.lead{display:none}
+  .opt{gap:4px;margin-bottom:8px}
+  .opt label{font-size:13px}
+  .seg button{padding:6px 9px;font-size:13px}
+  .actions{margin-top:12px}
+  .actions .btn{padding:10px 13px;font-size:14px}
+}
+/* celular e tablet: instruções de toque, sem seleção de texto nos controles */
+a.btn{text-decoration:none;display:inline-block}
+.keys-touch{display:none}
+#touch,#touch *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+@media (pointer:coarse){
+  .keys:not(.keys-touch){display:none}
+  .keys-touch{display:block}
+  #hint{display:none}
+}
+/* celular deitado: altura curta, controles nos cantos e treinador no meio, sem cobrir o joystick */
+@media (max-height:500px) and (orientation:landscape){
+  .brand{display:none}
+  #top{top:calc(env(safe-area-inset-top,0px) + 6px);left:calc(env(safe-area-inset-left,0px) + 10px);right:calc(env(safe-area-inset-right,0px) + 10px)}
+  #score{min-width:0;margin:0}
+  #score td{font-size:15px;padding:2px 6px}
+  #score td.nm{font-size:13px}
+  #score td.pts{min-width:40px;font-size:16px}
+  .tools{flex-wrap:nowrap;gap:4px;margin-left:auto;max-width:none}
+  .tools .btn{font-size:11.5px;padding:6px 8px}
+  #bVoice,#bExplore{display:none}
+  #touch{height:170px}
+  #stick{left:calc(env(safe-area-inset-left,0px) + 16px);bottom:calc(env(safe-area-inset-bottom,0px) + 14px);width:112px;height:112px}
+  #knob{width:48px;height:48px;margin:-24px 0 0 -24px}
+  #tbtns{right:calc(env(safe-area-inset-right,0px) + 14px);bottom:calc(env(safe-area-inset-bottom,0px) + 12px);grid-template-columns:repeat(2,64px);gap:8px}
+  #tbtns button{height:54px;font-size:14px}
+  #coach{left:calc(env(safe-area-inset-left,0px) + 144px);right:calc(env(safe-area-inset-right,0px) + 160px);width:auto;max-width:520px;margin:0 auto;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);padding:7px 10px;gap:8px}
+  #coach .who{font-size:14px}
+  #coach .who em{display:none}
+  #coachTag{margin:1px 0 2px;font-size:10.5px}
+  #coachText{font-size:12.5px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .avatar{width:30px;height:30px;font-size:13px}
+  #twin{left:calc(env(safe-area-inset-left,0px) + 10px);right:auto;top:calc(env(safe-area-inset-top,0px) + 62px);bottom:auto;width:210px;max-height:calc(100% - 200px);padding:9px}
+  #twin .big{font-size:26px}
+  #twin .foot{display:none}
+  #badge{top:calc(env(safe-area-inset-top,0px) + 60px)}
+  #toast{top:42%}
+  #menu{padding:10px calc(env(safe-area-inset-right,0px) + 10px) 10px calc(env(safe-area-inset-left,0px) + 10px)}
+  .card{padding:14px 18px;width:min(620px,100%)}
+  .card h1{font-size:28px}
+  .card h1 span{font-size:.55em}
+  .card p.lead{display:none}
+  .opt{grid-template-columns:110px 1fr;margin-bottom:6px}
+  .seg button{padding:5px 9px;font-size:13px}
+  .actions{margin-top:10px}
+  .actions .btn{padding:9px 14px}
+  #explore{top:calc(env(safe-area-inset-top,0px) + 56px);max-height:calc(100% - 120px);width:min(340px,calc(100% - 24px));padding:10px 12px}
+  #explore h2{font-size:22px}
+  #layers{padding:5px;bottom:calc(env(safe-area-inset-bottom,0px) + 6px)}
+  .chip{padding:4px 8px;font-size:12px}
 }
 @media (prefers-reduced-motion: reduce){#coach,#toast{transition:none}}
 </style>
@@ -174,7 +258,18 @@ kbd{font-family:var(--body);font-size:11.5px;font-weight:700;border:1px solid va
     <button class="btn" id="bVoice" aria-pressed="false">Voz do treinador</button>
     <button class="btn" id="bPause" title="Pausar (P)">Pausar</button>
   </div>
+  <button class="btn" id="bMenu" aria-label="Menu" aria-expanded="false" aria-controls="sheet"><span aria-hidden="true">☰</span></button>
 </div>
+<nav id="sheet" class="panel hidden" aria-label="Menu do jogo">
+  <button class="btn" data-proxy="bPause">Pausar</button>
+  <button class="btn" data-proxy="bCam">Câmera</button>
+  <button class="btn" data-proxy="bReplay">Replay</button>
+  <button class="btn" data-proxy="bExplore">Explorar quadra</button>
+  <button class="btn" data-proxy="bTwin">Gêmeo digital</button>
+  <button class="btn" data-proxy="bVoice">Voz do treinador</button>
+  <button class="btn" id="sFull" hidden>Tela cheia</button>
+  <a class="btn" href="../">← Padel Lobby</a>
+</nav>
 
 <aside id="twin" class="panel" aria-label="Telemetria do gêmeo digital">
   <h3>Telemetria ao vivo</h3>
@@ -244,7 +339,10 @@ kbd{font-family:var(--body);font-size:11.5px;font-weight:700;border:1px solid va
     <div class="actions">
       <button class="btn pri" id="mPlay">Começar partida</button>
       <button class="btn" id="mExplore">Explorar a quadra</button>
+      <button class="btn" id="mFull" hidden>Tela cheia</button>
+      <a class="btn" href="../">← Padel Lobby</a>
     </div>
+    <div class="keys keys-touch">Joystick à esquerda para correr. <b>Golpe</b> escolhe o golpe sozinho; <b>Plano</b>, <b>Globo</b> e <b>Ataque</b> para escolher. Para onde o joystick aponta na hora do golpe decide o lado do alvo. Melhor com o celular deitado.</div>
     <div class="keys">
       <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> ou setas para correr. Aperte o golpe pouco antes da bola chegar: <kbd>Espaço</kbd> escolhe sozinho, <kbd>J</kbd> plano, <kbd>K</kbd> globo, <kbd>L</kbd> bandeja ou remate, <kbd>H</kbd> chiquita. A direção que você segura na hora do golpe decide o lado do alvo. <kbd>C</kbd> câmera, <kbd>E</kbd> explorar, <kbd>R</kbd> replay, <kbd>P</kbd> pausa.
     </div>
@@ -483,6 +581,10 @@ function drawAds(){
   });
   if(adTex) adTex.needsUpdate=true;
 }
+/* celular: placar só no topo (os telões 3D repetiriam o mesmo placar e ocupam a tela pequena) */
+const jumbo=[], PHONE=matchMedia('(max-width:820px), (max-height:500px)');
+function fitPhone(){ jumbo.forEach(o=>o.visible=!PHONE.matches); }
+if(PHONE.addEventListener) PHONE.addEventListener('change',fitPhone);
 function buildBoards(){
   const c=document.createElement('canvas'); c.width=1024; c.height=256; boardCtx=c.getContext('2d');
   boardTex=new THREE.CanvasTexture(c); boardTex.encoding=THREE.sRGBEncoding;
@@ -491,6 +593,7 @@ function buildBoards(){
   const frame=new THREE.Mesh(new THREE.BoxGeometry(9.3,2.5,0.25),M.frame); frame.position.set(0,6.6,-22.45); scene.add(frame);
   const scr2=scr.clone(); scr2.position.set(0,6.6,22.3); scr2.rotation.y=Math.PI; scene.add(scr2);
   const f2=frame.clone(); f2.position.z=22.45; scene.add(f2);
+  jumbo.push(scr,frame,scr2,f2); fitPhone();
   // placas de publicidade
   adCanvas=document.createElement('canvas'); adCanvas.width=2048; adCanvas.height=116;
   adTex=new THREE.CanvasTexture(adCanvas); adTex.encoding=THREE.sRGBEncoding; adTex.anisotropy=maxAniso; adTex.wrapS=THREE.RepeatWrapping; drawAds();
@@ -1104,6 +1207,7 @@ function coach(kind,tag,text,speakIt){
   const tg=$('#coachTag'); tg.textContent=tag; tg.className=kind==='good'?'good':kind==='tip'?'tip':'';
   $('#coachText').textContent=text; const c=$('#coach'); c.classList.add('pulse'); setTimeout(()=>c.classList.remove('pulse'),260);
   if(voiceOn&&speakIt!==false) speak(text);
+  c.classList.remove('min'); clearTimeout(coach.t); if(PHONE.matches) coach.t=setTimeout(()=>c.classList.add('min'),5500);
 }
 function coachPoint(win,reason){
   const humanLast=RL.lastPlayer===human;
@@ -1390,7 +1494,28 @@ $('#bTwin').onclick=()=>{ const t=$('#twin'); t.classList.toggle('hidden'); $('#
 $('#bReplay').onclick=startReplay;
 $('#bPause').onclick=()=>{ if(APP.mode==='play'||APP.mode==='paused') togglePause(); };
 $('#bVoice').onclick=()=>{ voiceOn=!voiceOn; $('#bVoice').setAttribute('aria-pressed',voiceOn); $('#bVoice').classList.toggle('on',voiceOn); if(voiceOn) speak($('#coachText').textContent); else try{speechSynthesis.cancel();}catch(e){} };
-if(matchMedia('(max-width:820px)').matches) $('#twin').classList.add('hidden'); else $('#bTwin').classList.add('on');
+(function sheetSetup(){
+  const sh=$('#sheet'), bm=$('#bMenu');
+  const close=()=>{ sh.classList.add('hidden'); bm.setAttribute('aria-expanded','false'); };
+  bm.onclick=()=>{ const open=sh.classList.contains('hidden');
+    if(open) sh.querySelectorAll('[data-proxy]').forEach(b=>{ const o=$('#'+b.dataset.proxy); if(!o) return;
+      b.textContent=o.textContent; b.disabled=o.disabled; b.classList.toggle('on',o.classList.contains('on')); });
+    sh.classList.toggle('hidden',!open); bm.setAttribute('aria-expanded',open); };
+  sh.addEventListener('click',e=>{ const b=e.target.closest('[data-proxy]'); if(!b) return; const o=$('#'+b.dataset.proxy); close(); if(o) o.click(); });
+  document.addEventListener('pointerdown',e=>{ if(!sh.classList.contains('hidden')&&!e.target.closest('#sheet,#bMenu')) close(); });
+  $('#coach').addEventListener('click',()=>{ const c=$('#coach'); if(!PHONE.matches) return; c.classList.toggle('min'); clearTimeout(coach.t); if(!c.classList.contains('min')) coach.t=setTimeout(()=>c.classList.add('min'),5500); });
+})();
+if(matchMedia('(max-width:820px), (max-height:500px)').matches) $('#twin').classList.add('hidden'); else $('#bTwin').classList.add('on');
+// toque: golpe automático já marcado (o tempo do golpe no dedo é difícil) e tela cheia onde o navegador deixa
+if(matchMedia('(pointer:coarse)').matches){
+  document.querySelectorAll('[data-opt="assist"] button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v==='1'?'true':'false'));
+  const de=document.documentElement;
+  if(de.requestFullscreen&&!matchMedia('(display-mode: fullscreen)').matches){ $('#mFull').hidden=false; $('#sFull').hidden=false;
+    document.addEventListener('click',e=>{ if(!e.target.closest('#mFull,#sFull')) return;
+      de.requestFullscreen({navigationUI:'hide'}).then(()=>{ try{ screen.orientation.lock('landscape').catch(()=>{}); }catch(err){} }).catch(()=>{}); });
+    document.addEventListener('fullscreenchange',()=>{ const on=!!document.fullscreenElement; ['#mFull','#sFull'].forEach(q=>{ const b=$(q); if(b) b.hidden=on; }); });
+  }
+}
 
 /* ===================== visual por quadro ===================== */
 const ease=t=>t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;

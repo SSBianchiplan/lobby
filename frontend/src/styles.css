@@ -547,7 +547,22 @@ button.cal-head { cursor: pointer; }
 .aiv-card.compact .aiv-title { font-size: 22px; }
 .aiv-card.compact .aiv-text { font-size: 13px; }
 .aiv-card.compact .btn { height: 42px; padding: 0 16px; font-size: 13px; white-space: normal; text-align: left; line-height: 1.2; }
-.game-card { background: radial-gradient(120% 140% at 100% 0%, #1f43b8 0%, #0c1830 60%, #08101f 100%); }
+.game-card { --gp: 36px; background: #0c1830; min-height: 280px; }
+.game-card .aiv-body { position: relative; z-index: 1; max-width: 46%; }
+.game-shot { position: absolute; top: 0; right: 0; width: 66%; height: 100%; object-fit: cover; object-position: 50% 45%;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 38%); mask-image: linear-gradient(90deg, transparent, #000 38%); }
+/* celular e versão compacta: a cena vai em cima, de ponta a ponta, e se dissolve no texto */
+.game-card.compact { --gp: 18px; }
+.game-card.compact { flex-direction: column; align-items: stretch; padding-top: 0; min-height: 0; }
+.game-card.compact .aiv-body { max-width: none; flex: none; }
+.game-card.compact .game-shot { position: relative; width: calc(100% + 2 * var(--gp)); max-width: none; height: auto; aspect-ratio: 2 / 1; margin: 0 calc(-1 * var(--gp)) -24px;
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); }
+@media (max-width: 700px) {
+  .game-card:not(.compact) { flex-direction: column; align-items: stretch; padding-top: 0; min-height: 0; }
+  .game-card:not(.compact) .aiv-body { max-width: none; flex: none; }
+  .game-card:not(.compact) .game-shot { position: relative; width: calc(100% + 2 * var(--gp)); max-width: none; height: auto; aspect-ratio: 2 / 1; margin: 0 calc(-1 * var(--gp)) -24px;
+    -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); }
+}
 @media (max-width: 900px) { .aiv-card:not(.compact) { flex-direction: column; align-items: flex-start; } }
 @media (max-width: 520px) { .aiv-card.compact svg { display: none; } }
 

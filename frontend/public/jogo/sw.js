@@ -1,5 +1,5 @@
 // cache offline do jogo: troque VERSION a cada publicação para forçar a atualização nos aparelhos
-const VERSION='padel-lobby-v2';
+const VERSION='padel-lobby-v4';
 const CORE=['./','index.html','vendor/three.min.js','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','../logo.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(VERSION).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(n=>n!==VERSION).map(n=>caches.delete(n)))).then(()=>self.clients.claim()));});
