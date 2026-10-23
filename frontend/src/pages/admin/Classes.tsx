@@ -10,6 +10,7 @@ import { useToast } from "../../components/Toast";
 import { addMinutes, coachQrUrl, dayLabel, firstName, isoDay, LEVEL_LABEL, money } from "../../format";
 import { useClub } from "../../hooks";
 import { ClientPicker, type PickedClient } from "./ClientPicker";
+import { UserModal } from "./UserModal";
 import { CHANNEL_LABEL, COUNTER_CHANNELS, Kpi, Panel, pct } from "./shared";
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
@@ -420,6 +421,7 @@ function Enrollments({ group }: { group: Group }) {
 
 function Students() {
   const [term, setTerm] = useState("");
+  const [open, setOpen] = useState<number | null>(null);
   const q = useQuery({ queryKey: ["admin", "students", term], placeholderData: keepPreviousData,
     queryFn: () => api<{ id: number; name: string; phone: string | null; email: string; level: string | null; groups: string | null; present_30d: number; absent_30d: number; open_cents: number }[]>(`/api/admin/students?q=${encodeURIComponent(term)}`) });
   return (
@@ -433,7 +435,8 @@ function Students() {
               {q.data.map((s) => {
                 const total = s.present_30d + s.absent_30d;
                 return (
-                  <tr key={s.id}>
+                  <tr key={s.id} className="row-link" tabIndex={0} onClick={() => setOpen(s.id)} aria-label={`Abrir ficha de ${s.name}`}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(s.id); } }}>
                     <td className="rt-title" style={{ fontWeight: 800 }}>{s.name}</td>
                     <td data-label="Contato">{s.phone || (s.email.endsWith("@padellobby.invalid") ? "balcão" : s.email)}</td>
                     <td data-label="Turmas">{s.groups ?? <span className="muted">avulso</span>}</td>
@@ -447,6 +450,7 @@ function Students() {
           </table>
         </div>
       )}
+      <UserModal id={open} onClose={() => setOpen(null)} />
     </Panel>
   );
 }
@@ -537,6 +541,7 @@ function Coaches() {
   const [edit, setEdit] = useState<Coach | "new" | null>(null);
   const [card, setCard] = useState<number | null>(null);
   const [access, setAccess] = useState<Coach | null>(null);
+  const [detail, setDetail] = useState<number | null>(null);
   const [f, setF] = useState({ name: "", phone: "", email: "", color: "#7C3AED", active: true });
   const open = (c: Coach | "new") => { setEdit(c); setF(c === "new" ? { name: "", phone: "", email: "", color: "#7C3AED", active: true } : { name: c.name, phone: c.phone ?? "", email: c.email ?? "", color: c.color, active: c.active }); };
   const save = useMutation({
@@ -548,12 +553,13 @@ function Coaches() {
       {!q.data ? <Spinner /> : !q.data.length ? <p className="empty">Cadastre o primeiro professor para criar turmas.</p> : (
         <ul className="roster">
           {q.data.map((c) => (
-            <li key={c.id} style={{ opacity: c.active ? 1 : 0.55 }}>
+            <li key={c.id} className="row-link" tabIndex={0} style={{ opacity: c.active ? 1 : 0.55, cursor: "pointer" }} onClick={() => setDetail(c.id)}
+              onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setDetail(c.id); } }} aria-label={`Abrir ${c.name}`}>
               <span className="coach-dot" style={{ background: c.color }} aria-hidden="true" />
               <span style={{ flex: "1 1 180px", minWidth: 0 }}><strong>{c.name}</strong>{!c.active && <span className="badge badge-off" style={{ marginLeft: 6 }}>inativo</span>}
                 <br /><small className="muted">{[c.phone, c.email].filter(Boolean).join(" · ") || "sem contato"} · {c.groups} turma(s)</small>
                 <br /><small style={{ fontWeight: 700, color: c.login_email ? "var(--ok-ink)" : "var(--muted)" }}>{c.login_email ? `✓ acessa a área do professor (${c.login_email})` : "sem acesso à área do professor"}</small></span>
-              <span style={{ display: "flex", gap: 6 }}>
+              <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
                 <button className="btn btn-soft btn-sm" onClick={() => setCard(c.id)}>QR de check-in</button>
                 <button className="btn btn-outline btn-sm" onClick={() => setAccess(c)}>{c.login_email ? "Acesso" : "Dar acesso"}</button>
                 <button className="btn btn-outline btn-sm" onClick={() => open(c)}>Editar</button>
@@ -562,6 +568,10 @@ function Coaches() {
           ))}
         </ul>
       )}
+      <CoachDetail id={detail} onClose={() => setDetail(null)}
+        onEdit={() => { const c = q.data?.find((x) => x.id === detail); setDetail(null); if (c) open(c); }}
+        onQr={() => { setCard(detail); setDetail(null); }}
+        onAccess={() => { const c = q.data?.find((x) => x.id === detail); setDetail(null); if (c) setAccess(c); }} />
       <CoachCard id={card} onClose={() => setCard(null)} />
       <CoachAccess coach={access} onClose={() => setAccess(null)} />
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit === "new" ? "Novo professor" : "Editar professor"} width={480}>
@@ -660,6 +670,51 @@ function CoachAccess({ coach, onClose }: { coach: Coach | null; onClose: () => v
           </div>
         </form>
       ))}
+    </Modal>
+  );
+}
+
+
+/** Ficha do professor: números do mês, turmas, próximas aulas, acesso e atalhos. */
+function CoachDetail({ id, onClose, onEdit, onQr, onAccess }: { id: number | null; onClose: () => void; onEdit: () => void; onQr: () => void; onAccess: () => void }) {
+  const q = useQuery({ queryKey: ["admin", "coach-card", id], enabled: id !== null,
+    queryFn: () => api<{ id: number; name: string; phone: string | null; email: string | null; color: string; active: boolean; login_email: string | null;
+      groups: Group[]; stats: { given: number; upcoming: number; presences: number; students: number }; upcoming: Session[] }>(`/api/admin/coaches/${id}/card`) });
+  const c = q.data;
+  return (
+    <Modal open={id !== null} onClose={onClose} title={c ? c.name : "Professor"} width={640}>
+      {!c ? <Spinner /> : (
+        <div className="stack gap-14">
+          <p style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", fontWeight: 600 }}>
+            <span className="coach-dot" style={{ background: c.color }} aria-hidden="true" />
+            {[c.phone, c.email].filter(Boolean).join(" · ") || <span className="muted">sem contato</span>}
+            {!c.active && <span className="badge badge-off">inativo</span>}
+            {c.login_email ? <span className="badge badge-ok">acessa a área do professor</span> : <span className="badge badge-off">sem acesso à área</span>}
+          </p>
+          <div className="kpis user-kpis">
+            <div className="kpi"><p className="label">AULAS DADAS NO MÊS</p><p className="value">{c.stats.given}</p></div>
+            <div className="kpi"><p className="label">PRÓXIMAS NO MÊS</p><p className="value">{c.stats.upcoming}</p></div>
+            <div className="kpi"><p className="label">PRESENÇAS NO MÊS</p><p className="value">{c.stats.presences}</p></div>
+            <div className="kpi"><p className="label">ALUNOS ATIVOS</p><p className="value">{c.stats.students}</p></div>
+          </div>
+          {!!c.groups.length && (
+            <div><p className="field" style={{ marginBottom: 6 }}>TURMAS</p>
+              <ul className="roster">{c.groups.map((g) => <li key={g.id}><span style={{ flex: "1 1 180px", minWidth: 0 }}><strong>{g.name}</strong><br /><small className="muted">{g.schedule} · {g.court_name}</small></span><span style={{ fontWeight: 700, fontSize: 13 }}>{g.enrolled}/{g.capacity} alunos</span></li>)}</ul>
+            </div>
+          )}
+          {!!c.upcoming.length && (
+            <div><p className="field" style={{ marginBottom: 6 }}>PRÓXIMAS AULAS</p>
+              <ul className="roster">{c.upcoming.map((s) => <li key={s.id}><span className="class-time">{dayLabel(dayOf(s.starts_at))}<small>{hhmm(s.starts_at)}</small></span><span style={{ flex: "1 1 160px", minWidth: 0 }}><strong>{s.name}</strong><br /><small className="muted">{s.court_name} · {s.expected} aluno(s)</small></span></li>)}</ul>
+            </div>
+          )}
+          <div className="user-actions">
+            {c.phone && <a className="btn btn-outline btn-sm" href={`https://wa.me/55${c.phone.replace(/\D/g, "").replace(/^55/, "")}`} target="_blank" rel="noopener">WhatsApp</a>}
+            <button className="btn btn-outline btn-sm" onClick={onEdit}>Editar dados</button>
+            <button className="btn btn-soft btn-sm" onClick={onQr}>QR de check-in</button>
+            <button className="btn btn-outline btn-sm" onClick={onAccess}>{c.login_email ? "Acesso à área" : "Dar acesso"}</button>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

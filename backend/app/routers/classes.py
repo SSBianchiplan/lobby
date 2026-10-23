@@ -587,11 +587,25 @@ async def revoke_coach_access(coach_id: int, _: Admin, conn: Conn):
 @router.get("/admin/coaches/{coach_id}/card")
 async def coach_card(coach_id: int, _: Admin, conn: Conn):
     """Dados da carteirinha do professor (QR de check-in + turmas)."""
-    c = await conn.fetchrow("SELECT id, name, phone, color, checkin_token::text AS token FROM coaches WHERE id = $1", coach_id)
+    c = await conn.fetchrow(
+        """SELECT c.id, c.name, c.phone, c.email, c.color, c.active, c.checkin_token::text AS token, u.email::text AS login_email
+           FROM coaches c LEFT JOIN users u ON u.id = c.user_id WHERE c.id = $1""", coach_id)
     if c is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Professor não encontrado.")
     gs = await conn.fetch(GROUP_SELECT + " WHERE g.coach_id = $1 AND g.active ORDER BY g.name", coach_id)
-    return {**dict(c), "groups": [_group_out(g) for g in gs]}
+    m0 = local_dt(now_local().date().replace(day=1), time(0))
+    stats = await conn.fetchrow(
+        """SELECT count(*) FILTER (WHERE x.status <> 'cancelled' AND lower(x.period) < now()) AS given,
+                  count(*) FILTER (WHERE x.status = 'scheduled' AND lower(x.period) >= now()) AS upcoming,
+                  (SELECT count(*) FROM attendance a JOIN class_sessions y ON y.id = a.session_id
+                    WHERE y.coach_id = $1 AND lower(y.period) >= $2 AND a.status = 'present') AS presences,
+                  (SELECT count(DISTINCT e.user_id) FROM enrollments e JOIN class_groups g ON g.id = e.group_id
+                    WHERE g.coach_id = $1 AND e.status = 'active') AS students
+           FROM class_sessions x WHERE x.coach_id = $1 AND lower(x.period) >= $2 AND lower(x.period) < $2 + interval '1 month'""",
+        coach_id, m0)
+    nxt = await conn.fetch(SESSION_SELECT + """ WHERE s.coach_id = $1 AND s.status = 'scheduled' AND upper(s.period) > now()
+                                               ORDER BY lower(s.period) LIMIT 5""", coach_id)
+    return {**dict(c), "groups": [_group_out(g) for g in gs], "stats": dict(stats), "upcoming": [_row(r) for r in nxt]}
 
 
 # ── Mensalidades e cobranças ────────────────────────────────────────────────

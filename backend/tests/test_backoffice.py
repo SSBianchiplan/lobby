@@ -206,3 +206,58 @@ async def test_admin_creates_users_with_temporary_password(client):
     assert (await client.post("/api/admin/users", json={"name": "Outro Admin", "email": "oa@ex.com", "role": "admin"}, headers=m)).json()["role"] == "admin"
     ana = await make_user(client)
     assert (await client.post("/api/admin/users", json={"name": "X Y", "email": "xy@ex.com"}, headers=ana)).status_code == 403
+
+
+async def test_inactivate_reactivate_delete_users(client):
+    from .test_reservations import body, next_weekday
+    adm = await admin(client)
+    # conta nunca usada: exclusão apaga de vez
+    fresh = (await client.post("/api/admin/users", json={"name": "Sem Uso", "email": "semuso@ex.com"}, headers=adm)).json()
+    assert (await client.delete(f"/api/admin/users/{fresh['id']}", headers=adm)).json()["mode"] == "deleted"
+    async with db.pool().acquire() as conn:
+        assert await conn.fetchval("SELECT count(*) FROM users WHERE email = 'semuso@ex.com'") == 0
+
+    ana = await make_user(client)
+    users = (await client.get("/api/admin/users?q=ana", headers=adm)).json()
+    aid = users[0]["id"]
+    # inativar: login barrado (depois da senha certa), sessão cai, some das buscas ativas, reserva pelo balcão barrada
+    assert (await client.put(f"/api/admin/users/{aid}/active", json={"active": False}, headers=adm)).status_code == 200
+    assert (await client.get("/api/me", headers=ana)).status_code == 401
+    r = await client.post("/api/auth/login", json={"email": "ana@ex.com", "password": "segredo123"})
+    assert r.status_code == 403 and "inativa" in r.json()["detail"]
+    assert (await client.post("/api/auth/login", json={"email": "ana@ex.com", "password": "errada"})).status_code == 401
+    assert (await client.get("/api/admin/users?state=inactive", headers=adm)).json()[0]["id"] == aid
+    assert all(u["id"] != aid for u in (await client.get("/api/admin/users?state=active", headers=adm)).json())
+    clash = await client.post("/api/admin/reservations", json={"court_id": 1, "date": next_weekday(3).isoformat(), "start": "19:00", "user_id": aid}, headers=adm)
+    assert clash.status_code == 409 and "inativo" in clash.json()["detail"]
+    # reativar devolve o acesso
+    await client.put(f"/api/admin/users/{aid}/active", json={"active": True}, headers=adm)
+    ana = {"Authorization": f"Bearer {(await client.post('/api/auth/login', json={'email': 'ana@ex.com', 'password': 'segredo123'})).json()['token']}"}
+    # com reserva futura: exclusão barrada; depois de cancelar, anonimiza
+    res = (await client.post("/api/reservations", json=body(next_weekday(4), method="card"), headers=ana)).json()
+    assert (await client.delete(f"/api/admin/users/{aid}", headers=adm)).status_code == 409
+    await client.post(f"/api/reservations/{res['code']}/cancel", json={}, headers=ana)
+    assert (await client.delete(f"/api/admin/users/{aid}", headers=adm)).json()["mode"] == "anonymized"
+    async with db.pool().acquire() as conn:
+        row = await conn.fetchrow("SELECT name, email::text AS email FROM users WHERE id = $1", aid)
+        assert row["name"] == "Conta excluída" and row["email"].startswith("excluido-")
+    # regras: admin comum não age sobre admin, ninguém sobre si mesmo
+    async with db.pool().acquire() as conn:
+        adm_id = await conn.fetchval("SELECT id FROM users WHERE email = 'admin@padellobby.com.br'")
+        other = await conn.fetchval("INSERT INTO users (name, email, password_hash, role) VALUES ('Outro', 'outro@ex.com', 'x', 'admin') RETURNING id")
+    assert (await client.put(f"/api/admin/users/{adm_id}/active", json={"active": False}, headers=adm)).status_code == 409
+    assert (await client.delete(f"/api/admin/users/{other}", headers=adm)).status_code == 403
+
+
+async def test_user_detail_and_edit(client):
+    adm = await admin(client)
+    ana = await make_user(client)
+    aid = (await client.get("/api/admin/users?q=ana", headers=adm)).json()[0]["id"]
+    d = (await client.get(f"/api/admin/users/{aid}", headers=adm)).json()
+    assert d["name"] == "Ana Souza" and d["stats"]["rentals"] == 0 and d["is_walk_in"] is False
+    e = await client.put(f"/api/admin/users/{aid}", json={"name": "Ana S. Lima", "email": "ana.lima@ex.com", "phone": "(53) 90000-0000", "level": "4"}, headers=adm)
+    assert e.status_code == 200 and e.json()["email"] == "ana.lima@ex.com" and e.json()["level"] == "4"
+    assert (await client.get("/api/me", headers=ana)).status_code == 401  # trocou o login → sessões caem
+    await make_user(client, "bia@ex.com", "Bia Lima")
+    dup = await client.put(f"/api/admin/users/{aid}", json={"name": "Ana", "email": "bia@ex.com"}, headers=adm)
+    assert dup.status_code == 409

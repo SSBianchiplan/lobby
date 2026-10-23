@@ -3,15 +3,16 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { api, ApiError } from "../../api";
 import { useAuth } from "../../auth";
 import { Spinner } from "../../components/Layout";
-import { Modal, useConfirm } from "../../components/Modal";
+import { Modal } from "../../components/Modal";
 import { useToast } from "../../components/Toast";
 import { LEVEL_LABEL, money } from "../../format";
 import { ManualCard } from "./Manual";
+import { UserModal } from "./UserModal";
 import { Panel } from "./shared";
 
 type Row = {
   id: number; name: string; email: string; phone: string | null; role: "player" | "admin"; created_at: string;
-  rentals: number; paid_cents: number; last_rental: string | null; is_master: boolean;
+  rentals: number; paid_cents: number; last_rental: string | null; is_master: boolean; disabled_at: string | null; future_reservations: number;
   level: string | null; side: string | null; city: string | null; last_login_at: string | null; must_change_password: boolean;
 };
 
@@ -19,26 +20,17 @@ export default function Users() {
   const { user } = useAuth();
   const [term, setTerm] = useState("");
   const [role, setRole] = useState("");
+  const [state, setState] = useState("active");
+  const [open, setOpen] = useState<number | null>(null);
   const qc = useQueryClient();
   const toast = useToast();
-  const confirm = useConfirm();
   const q = useQuery({
-    queryKey: ["admin", "users", term, role], placeholderData: keepPreviousData,
-    queryFn: () => api<Row[]>(`/api/admin/users?q=${encodeURIComponent(term)}${role ? `&role=${role}` : ""}`),
-  });
-  const setRoleM = useMutation({
-    mutationFn: (v: { id: number; role: string }) => api(`/api/admin/users/${v.id}/role`, { method: "PUT", json: { role: v.role } }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["admin", "users"] }); toast("Papel atualizado"); },
-    onError: (e) => toast(e instanceof ApiError ? e.message : "Falhou."),
-  });
-  const [temp, setTemp] = useState<{ name: string; password: string; email?: string; phone?: string | null } | null>(null);
-  const [creating, setCreating] = useState(false);
-  const reset = useMutation({
-    mutationFn: (u: Row) => api<{ temporary_password: string }>(`/api/admin/users/${u.id}/reset-password`, { method: "POST" }).then((r) => ({ name: u.name, password: r.temporary_password })),
-    onSuccess: (r) => { setTemp(r); qc.invalidateQueries({ queryKey: ["admin", "users"] }); },
-    onError: (e) => toast(e instanceof ApiError ? e.message : "Falhou."),
+    queryKey: ["admin", "users", term, role, state], placeholderData: keepPreviousData,
+    queryFn: () => api<Row[]>(`/api/admin/users?q=${encodeURIComponent(term)}${role ? `&role=${role}` : ""}&state=${state}`),
   });
   const master = !!user?.is_master;
+  const [temp, setTemp] = useState<{ name: string; password: string; email?: string; phone?: string | null } | null>(null);
+  const [creating, setCreating] = useState(false);
 
   return (
     <div className="stack gap-18">
@@ -47,6 +39,11 @@ export default function Users() {
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
         <label className="field" style={{ flex: "2 1 260px" }}>BUSCAR
           <input className="input" placeholder="Nome, e-mail ou telefone" value={term} onChange={(e) => setTerm(e.target.value)} />
+        </label>
+        <label className="field" style={{ flex: "1 1 140px" }}>STATUS
+          <select className="select" value={state} onChange={(e) => setState(e.target.value)}>
+            <option value="active">Ativos</option><option value="inactive">Inativos</option><option value="all">Todos</option>
+          </select>
         </label>
         <label className="field" style={{ flex: "1 1 160px" }}>PAPEL
           <select className="select" value={role} onChange={(e) => setRole(e.target.value)}>
@@ -71,7 +68,9 @@ export default function Users() {
             <thead><tr><th>NOME</th><th>CONTATO</th><th className="hide-md">CATEGORIA</th><th>PAPEL</th><th>LOCAÇÕES</th><th>PAGO</th><th className="hide-md">ÚLTIMO JOGO</th><th><span className="sr-only">Ações</span></th></tr></thead>
             <tbody>
               {q.data.map((u) => (
-                <tr key={u.id}>
+                <tr key={u.id} className="row-link" tabIndex={0} onClick={() => setOpen(u.id)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(u.id); } }}
+                  aria-label={`Abrir ficha de ${u.name}`} style={{ opacity: u.disabled_at ? 0.6 : 1 }}>
                   <td className="rt-title" style={{ fontWeight: 800 }}>{u.name}{u.must_change_password && <div className="muted" style={{ fontSize: 11 }}>senha temporária pendente</div>}</td>
                   <td data-label="Contato"><span style={{ overflowWrap: "anywhere" }}>{u.email.endsWith("@padellobby.invalid") ? <span className="muted">cliente de balcão (sem e-mail)</span> : u.email}<div className="muted" style={{ fontSize: 12 }}>{[u.phone, u.city].filter(Boolean).join(" · ")}</div></span></td>
                   <td className="hide-md" data-label="Categoria">{u.level ? LEVEL_LABEL[u.level] : "—"}</td>
@@ -80,13 +79,8 @@ export default function Users() {
                   <td data-label="Pago">{money(u.paid_cents)}</td>
                   <td className="hide-md" data-label="Último jogo">{u.last_rental ? new Date(u.last_rental).toLocaleDateString("pt-BR") : "—"}</td>
                   <td className="rt-actions users-actions">
-                    {!u.is_master && (u.role !== "admin" || master) && (
-                      <button className="btn btn-soft btn-sm" disabled={reset.isPending}
-                        onClick={async () => { if (await confirm({ title: "Redefinir senha?", message: <>Gerar uma senha temporária para <strong>{u.name}</strong>? A senha atual deixa de valer e as sessões abertas são encerradas.</>, confirmLabel: "Gerar senha temporária" })) reset.mutate(u); }}>Redefinir senha</button>
-                    )}
-                    {master && !u.is_master && (u.role === "admin"
-                      ? <button className="btn btn-outline btn-sm" onClick={async () => { if (await confirm({ title: "Rebaixar administrador?", message: <><strong>{u.name}</strong> perde o acesso à administração e volta a ser jogador.</>, confirmLabel: "Rebaixar", danger: true })) setRoleM.mutate({ id: u.id, role: "player" }); }}>Rebaixar</button>
-                      : <button className="btn btn-dark btn-sm" onClick={async () => { if (await confirm({ title: "Tornar administrador?", message: <><strong>{u.name}</strong> passa a ver e operar toda a administração: agenda, pagamentos, caixa e relatórios.</>, confirmLabel: "Tornar admin" })) setRoleM.mutate({ id: u.id, role: "admin" }); }}>Tornar admin</button>)}
+                    {u.disabled_at && <span className="badge badge-red">Inativo</span>}
+                    <span className="text-link" aria-hidden="true">Abrir ficha →</span>
                   </td>
                 </tr>
               ))}
@@ -94,6 +88,7 @@ export default function Users() {
           </table>
         </div>
       )}
+      <UserModal id={open} onClose={() => setOpen(null)} />
       <NewUserModal open={creating} master={master} onClose={() => setCreating(false)}
         onCreated={(u) => { setCreating(false); setTemp(u); qc.invalidateQueries({ queryKey: ["admin", "users"] }); toast("Usuário criado"); }} />
     </Panel>

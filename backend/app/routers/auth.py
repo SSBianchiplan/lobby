@@ -117,10 +117,12 @@ async def login(body: LoginIn, conn: Conn):
     key = body.email.lower()
     if len(_recent_fails(key)) >= MAX_FAILS:
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Muitas tentativas. Aguarde alguns minutos e tente de novo.")
-    u = await conn.fetchrow(f"SELECT {USER_COLUMNS}, password_hash FROM users WHERE email = $1 AND deleted_at IS NULL", body.email)
+    u = await conn.fetchrow(f"SELECT {USER_COLUMNS}, password_hash, disabled_at FROM users WHERE email = $1 AND deleted_at IS NULL", body.email)
     if u is None or not verify_password(body.password, u["password_hash"]):
         _FAILS[key].append(time.monotonic())
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "E-mail ou senha incorretos.")
+    if u["disabled_at"] is not None:  # só depois da senha certa: não revela quais contas existem
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Conta inativa. Fale com a recepção do clube.")
     _FAILS.pop(key, None)
     await conn.execute("UPDATE users SET last_login_at = now() WHERE id = $1", u["id"])
     return _session(u, await _is_coach(conn, u["id"]))
@@ -240,14 +242,23 @@ async def delete_me(body: ConfirmIn, user: User, conn: Conn):
     )
     if active:
         raise HTTPException(status.HTTP_409_CONFLICT, "Você tem reservas futuras. Cancele-as (ou jogue!) antes de excluir a conta.")
+    await anonymize_user(conn, user["id"])
+    return {"ok": True}
+
+
+async def anonymize_user(conn: asyncpg.Connection, user_id: int) -> None:
+    """Exclusão com histórico: apaga os dados pessoais e mantém reservas/pagamentos sem identificação.
+    Encerra matrículas, cancela cobranças em aberto e desfaz vínculo de professor."""
     async with conn.transaction():
         await conn.execute(
             """UPDATE users SET name = 'Conta excluída', email = 'excluido-' || id || '@invalid', phone = NULL, city = NULL,
                    level = NULL, side = NULL, hand = NULL, marketing_opt_in = false, role = 'player',
                    password_hash = $2, token_version = token_version + 1, deleted_at = now(), updated_at = now()
                WHERE id = $1""",
-            user["id"], hash_password(secrets.token_urlsafe(24)),
+            user_id, hash_password(secrets.token_urlsafe(24)),
         )
-        await conn.execute("UPDATE reservation_players SET name = 'Jogador' WHERE user_id = $1", user["id"])
-        await conn.execute("DELETE FROM notifications WHERE user_id = $1", user["id"])
-    return {"ok": True}
+        await conn.execute("UPDATE reservation_players SET name = 'Jogador' WHERE user_id = $1", user_id)
+        await conn.execute("DELETE FROM notifications WHERE user_id = $1", user_id)
+        await conn.execute("UPDATE enrollments SET status = 'cancelled', ended_on = current_date WHERE user_id = $1 AND status <> 'cancelled'", user_id)
+        await conn.execute("UPDATE student_charges SET status = 'cancelled' WHERE user_id = $1 AND status = 'open'", user_id)
+        await conn.execute("UPDATE coaches SET user_id = NULL WHERE user_id = $1", user_id)

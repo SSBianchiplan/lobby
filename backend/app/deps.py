@@ -26,7 +26,7 @@ async def _user_from_request(request: Request, conn: asyncpg.Connection) -> asyn
     except jwt.PyJWTError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sessão expirada. Entre novamente.")
     user = await conn.fetchrow(
-        "SELECT id, name, email, phone, role, token_version, must_change_password FROM users WHERE id = $1 AND deleted_at IS NULL",
+        "SELECT id, name, email, phone, role, token_version, must_change_password FROM users WHERE id = $1 AND deleted_at IS NULL AND disabled_at IS NULL",
         int(payload["sub"]),
     )
     if user is None or payload.get("tv", 0) != user["token_version"]:

@@ -15,6 +15,7 @@ from .. import reservations as svc
 from ..config import get_settings
 from ..deps import Admin, Conn, Master
 from ..security import hash_password, verify_password
+from .auth import anonymize_user
 from ..domain import WEEKDAY_SHORT, _m, day_infos, load_settings, local_dt, now_local
 
 router = APIRouter(prefix="/api/admin", tags=["retaguarda"])
@@ -439,23 +440,27 @@ async def rentals_csv(
 # ── Usuários (papéis: só o admin master altera) ─────────────────────────────
 
 @router.get("/users")
-async def users(_: Admin, conn: Conn, q: str = "", role: Literal["player", "admin"] | None = None, limit: int = Query(100, le=500)):
+async def users(_: Admin, conn: Conn, q: str = "", role: Literal["player", "admin"] | None = None,
+                state: Literal["active", "inactive", "all"] = "all", limit: int = Query(100, le=500)):
     rows = await conn.fetch(
         f"""SELECT u.id, u.name, u.email, u.phone, u.role, u.created_at, u.level, u.side, u.city, u.last_login_at,
-                   u.must_change_password,
+                   u.must_change_password, u.disabled_at,
+                   count(r.id) FILTER (WHERE r.status IN ('pending', 'confirmed') AND upper(r.period) > now()) AS future_reservations,
                    count(r.id) FILTER (WHERE r.status IN {PLAYED}) AS rentals,
                    coalesce(sum(r.price_cents) FILTER (WHERE r.payment_status = 'paid'), 0) AS paid_cents,
                    max(lower(r.period)) FILTER (WHERE r.status IN {PLAYED}) AS last_rental
             FROM users u LEFT JOIN reservations r ON r.user_id = u.id
             WHERE u.deleted_at IS NULL AND ($1 = '' OR u.name ILIKE '%' || $1 || '%' OR u.email::text ILIKE '%' || $1 || '%' OR coalesce(u.phone, '') ILIKE '%' || $1 || '%')
               AND ($2::text IS NULL OR u.role = $2)
-            GROUP BY u.id ORDER BY (u.role = 'admin') DESC, u.name LIMIT $3""",
-        q.strip(), role, limit,
+              AND ($4 = 'all' OR ($4 = 'active') = (u.disabled_at IS NULL))
+            GROUP BY u.id ORDER BY (u.disabled_at IS NOT NULL), (u.role = 'admin') DESC, u.name LIMIT $3""",
+        q.strip(), role, limit, state,
     )
     tz = get_settings().tz
     return [{**dict(r), "email": str(r["email"]), "created_at": r["created_at"].astimezone(tz).isoformat(),
              "last_rental": r["last_rental"].astimezone(tz).isoformat() if r["last_rental"] else None,
              "last_login_at": r["last_login_at"].astimezone(tz).isoformat() if r["last_login_at"] else None,
+             "disabled_at": r["disabled_at"].astimezone(tz).isoformat() if r["disabled_at"] else None,
              "is_master": get_settings().is_master(r["email"])} for r in rows]
 
 
@@ -488,6 +493,144 @@ async def create_user(body: NewUserIn, admin: Admin, conn: Conn):
         raise HTTPException(status.HTTP_409_CONFLICT, "Já existe uma conta com esse e-mail.")
     log.info("usuário %s (%s) criado por %s", u["email"], u["role"], admin["email"])
     return {**dict(u), "temporary_password": temp}
+
+
+async def _target(conn: asyncpg.Connection, admin: asyncpg.Record, user_id: int, action: str) -> asyncpg.Record:
+    """Quem pode agir sobre quem: ninguém sobre o master nem sobre si mesmo; administrador só o master."""
+    u = await conn.fetchrow("SELECT id, name, email, role, disabled_at FROM users WHERE id = $1 AND deleted_at IS NULL", user_id)
+    if u is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuário não encontrado.")
+    settings = get_settings()
+    if settings.is_master(u["email"]):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Não é possível {action} o admin master.")
+    if u["id"] == admin["id"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Você não pode {action} a própria conta.")
+    if u["role"] == "admin" and not settings.is_master(admin["email"]):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"Só o admin master pode {action} outro administrador.")
+    return u
+
+
+@router.get("/users/{user_id}")
+async def user_detail(user_id: int, _: Admin, conn: Conn):
+    """Ficha completa do usuário para o modal: dados, números, reservas, aulas e cobranças."""
+    u = await conn.fetchrow(
+        """SELECT id, name, email::text AS email, phone, role, city, level, side, hand, marketing_opt_in, must_change_password,
+                  created_at, last_login_at, disabled_at, accepted_terms_at FROM users WHERE id = $1 AND deleted_at IS NULL""", user_id)
+    if u is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuário não encontrado.")
+    tz = get_settings().tz
+    iso = lambda v: v.astimezone(tz).isoformat() if v else None  # noqa: E731
+    stats = await conn.fetchrow(
+        f"""SELECT count(*) FILTER (WHERE status IN {PLAYED}) AS rentals,
+                   coalesce(sum(duration_min) FILTER (WHERE status IN {PLAYED}), 0) AS minutes,
+                   coalesce(sum(price_cents) FILTER (WHERE payment_status = 'paid'), 0) AS paid_cents,
+                   coalesce(sum(price_cents) FILTER (WHERE payment_status = 'onsite' AND status IN {PLAYED}), 0) AS open_cents,
+                   count(*) FILTER (WHERE status = 'cancelled') AS cancelled,
+                   count(*) FILTER (WHERE status IN ('pending', 'confirmed') AND upper(period) > now()) AS future
+            FROM reservations WHERE user_id = $1""", user_id)
+    res = await conn.fetch(
+        """SELECT r.code, c.name AS court, lower(r.period) AS starts_at, upper(r.period) AS ends_at, r.status, r.payment_status, r.price_cents
+           FROM reservations r JOIN courts c ON c.id = r.court_id WHERE r.user_id = $1 ORDER BY lower(r.period) DESC LIMIT 8""", user_id)
+    groups = await conn.fetch(
+        """SELECT e.id AS enrollment_id, e.status, g.name, c.name AS coach FROM enrollments e JOIN class_groups g ON g.id = e.group_id
+           JOIN coaches c ON c.id = g.coach_id WHERE e.user_id = $1 AND e.status <> 'cancelled' ORDER BY g.name""", user_id)
+    att = await conn.fetchrow(
+        """SELECT count(*) FILTER (WHERE status = 'present') AS present, count(*) FILTER (WHERE status <> 'present') AS missed
+           FROM attendance WHERE user_id = $1""", user_id)
+    charges = await conn.fetch(
+        "SELECT id, description, amount_cents, created_at FROM student_charges WHERE user_id = $1 AND status = 'open' ORDER BY created_at", user_id)
+    coach = await conn.fetchval("SELECT name FROM coaches WHERE user_id = $1", user_id)
+    return {
+        **{k: (iso(v) if k.endswith("_at") else v) for k, v in dict(u).items()},
+        "is_master": get_settings().is_master(u["email"]),
+        "is_walk_in": u["email"].endswith("@padellobby.invalid"),
+        "coach_name": coach,
+        "stats": dict(stats),
+        "reservations": [{**dict(r), "starts_at": iso(r["starts_at"]), "ends_at": iso(r["ends_at"])} for r in res],
+        "groups": [dict(g) for g in groups],
+        "attendance": dict(att),
+        "open_charges": [{**dict(c), "created_at": iso(c["created_at"])} for c in charges],
+    }
+
+
+class EditUserIn(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    email: EmailStr | None = None
+    phone: str | None = Field(default=None, max_length=30)
+    city: str | None = Field(default=None, max_length=60)
+    level: Literal["iniciante", "6", "5", "4", "3", "2", "1"] | None = None
+    side: Literal["direita", "esquerda", "ambos"] | None = None
+    hand: Literal["destro", "canhoto"] | None = None
+
+
+@router.put("/users/{user_id}")
+async def edit_user(user_id: int, body: EditUserIn, admin: Admin, conn: Conn):
+    """Recepção corrige os dados do cliente. Trocar o e-mail derruba as sessões (é o login)."""
+    u = await conn.fetchrow("SELECT id, email::text AS email, role FROM users WHERE id = $1 AND deleted_at IS NULL", user_id)
+    if u is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuário não encontrado.")
+    settings = get_settings()
+    if u["id"] != admin["id"]:
+        if settings.is_master(u["email"]):
+            raise HTTPException(status.HTTP_409_CONFLICT, "Os dados do admin master só são alterados por ele, no perfil.")
+        if u["role"] == "admin" and not settings.is_master(admin["email"]):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Só o admin master altera outro administrador.")
+    email = str(body.email).lower() if body.email else u["email"]
+    if email != u["email"] and settings.is_master(email):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Esse e-mail é reservado ao admin master.")
+    try:
+        await conn.execute(
+            """UPDATE users SET name = $2, email = $3::text, phone = $4, city = $5, level = $6, side = $7, hand = $8, updated_at = now(),
+                   token_version = token_version + CASE WHEN email::text <> $3::text THEN 1 ELSE 0 END WHERE id = $1""",
+            user_id, body.name.strip(), email, (body.phone or "").strip() or None, (body.city or "").strip() or None,
+            body.level, body.side, body.hand)
+    except asyncpg.UniqueViolationError:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Já existe outra conta com esse e-mail.")
+    return await user_detail(user_id, admin, conn)
+
+
+class ActiveIn(BaseModel):
+    active: bool
+
+
+@router.put("/users/{user_id}/active")
+async def set_active(user_id: int, body: ActiveIn, admin: Admin, conn: Conn):
+    """Inativar bloqueia o login e derruba as sessões; reservas e histórico ficam. Reativar devolve o acesso."""
+    u = await _target(conn, admin, user_id, "inativar" if not body.active else "reativar")
+    if body.active:
+        await conn.execute("UPDATE users SET disabled_at = NULL, disabled_by = NULL WHERE id = $1", user_id)
+    elif u["disabled_at"] is None:
+        await conn.execute(
+            "UPDATE users SET disabled_at = now(), disabled_by = $2, token_version = token_version + 1 WHERE id = $1", user_id, admin["id"])
+    log.info("usuário %s %s por %s", u["email"], "reativado" if body.active else "inativado", admin["email"])
+    return {"ok": True, "active": body.active}
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(user_id: int, admin: Admin, conn: Conn):
+    """Sem histórico: apaga a conta. Com histórico: anonimiza (reservas e pagamentos ficam, sem dados pessoais)."""
+    u = await _target(conn, admin, user_id, "excluir")
+    future = await conn.fetchval(
+        "SELECT count(*) FROM reservations WHERE user_id = $1 AND status IN ('pending', 'confirmed', 'checked_in') AND upper(period) > now()", user_id)
+    if future:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"{u['name']} tem {future} reserva(s) futura(s). Cancele-as antes de excluir.")
+    used = await conn.fetchval(
+        """SELECT EXISTS (SELECT 1 FROM reservations WHERE user_id = $1) OR EXISTS (SELECT 1 FROM reservation_players WHERE user_id = $1)
+                  OR EXISTS (SELECT 1 FROM attendance WHERE user_id = $1) OR EXISTS (SELECT 1 FROM student_charges WHERE user_id = $1)
+                  OR EXISTS (SELECT 1 FROM enrollments WHERE user_id = $1) OR EXISTS (SELECT 1 FROM payments WHERE received_by = $1)
+                  OR EXISTS (SELECT 1 FROM daily_closings WHERE closed_by = $1 OR reopened_by = $1)
+                  OR EXISTS (SELECT 1 FROM blocks WHERE created_by = $1)""", user_id)
+    if used:
+        await anonymize_user(conn, user_id)
+        mode = "anonymized"
+    else:
+        async with conn.transaction():
+            await conn.execute("UPDATE coaches SET user_id = NULL WHERE user_id = $1", user_id)
+            await conn.execute("UPDATE users SET disabled_by = NULL WHERE disabled_by = $1", user_id)
+            await conn.execute("DELETE FROM users WHERE id = $1", user_id)
+        mode = "deleted"
+    log.warning("usuário %s excluído (%s) por %s", u["email"], mode, admin["email"])
+    return {"ok": True, "mode": mode}
 
 
 class RoleIn(BaseModel):
@@ -623,9 +766,11 @@ async def resolve_client(conn: asyncpg.Connection, user_id: int | None, client: 
     if (user_id is None) == (client is None):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Escolha um cliente cadastrado ou informe o nome do cliente de balcão.")
     if user_id is not None:
-        owner = await conn.fetchrow("SELECT id, name, email, phone, role FROM users WHERE id = $1 AND deleted_at IS NULL", user_id)
+        owner = await conn.fetchrow("SELECT id, name, email, phone, role, disabled_at FROM users WHERE id = $1 AND deleted_at IS NULL", user_id)
         if owner is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Cliente não encontrado.")
+        if owner["disabled_at"] is not None:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Esse cliente está inativo. Reative em Usuários para continuar.")
         return owner
     email = (client.email or "").strip().lower() or None
     if email and await conn.fetchval("SELECT 1 FROM users WHERE email = $1", email):

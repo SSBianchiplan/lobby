@@ -258,6 +258,11 @@ h1, h2, h3, p { margin: 0; }
 .table-scroll { overflow-x: auto; position: relative; }
 td.rt-actions > * + * { margin-left: 6px; }
 td.users-actions { white-space: normal; text-align: right; }
+tr.row-link { cursor: pointer; }
+tr.row-link:hover td, tr.row-link:focus-visible td { background: var(--bg); }
+tr.row-link:focus-visible { outline: 3px solid var(--ball); outline-offset: -3px; }
+.user-kpis { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important; }
+.user-actions { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid var(--line); }
 @media (min-width: 761px) and (max-width: 1180px) { .table .hide-md { display: none; } }
 td.users-actions > * { margin: 3px 0 3px 6px; } /* contém os .sr-only absolutos dos cabeçalhos */
 
