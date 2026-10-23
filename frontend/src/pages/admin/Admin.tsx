@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Route, Routes } from "react-router-dom";
+import { Link, NavLink, Route, Routes } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, type Reservation } from "../../api";
 import { BottomNav, SiteHeader, Spinner } from "../../components/Layout";
@@ -28,6 +28,7 @@ export default function Admin() {
       <main className="container page">
         <div className="between">
           <h1 className="italic-title" style={{ fontSize: 36 }}>Administração <span className="accent">Padel Lobby</span></h1>
+          <Link to="/recepcao" className="btn btn-primary btn-sm no-print" style={{ height: 44 }}>Leitor de check-in (câmera)</Link>
           <nav className="admin-tabs no-print" aria-label="Administração">
             {TABS.map(([to, label]) => <NavLink key={to} end={to === "/admin"} to={to} className={({ isActive }) => (isActive ? "active" : "")}>{label}</NavLink>)}
           </nav>

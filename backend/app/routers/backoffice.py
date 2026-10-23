@@ -9,7 +9,7 @@ from typing import Literal
 
 import asyncpg
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from .. import reservations as svc
 from ..config import get_settings
@@ -552,3 +552,60 @@ async def purge_demo(body: PurgeIn, master: Master, conn: Conn):
                 {k: v for k, v in before.items() if k != "sample"})
     return {"deleted": {k: before[k] for k in ("users", "reservations", "payments", "players", "notifications", "closings")},
             "remaining": await _demo_preview(conn)}
+
+
+# ── Reserva feita pela recepção (aba Disponibilidade) ──────────────────────
+
+class WalkInIn(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    phone: str | None = Field(default=None, max_length=30)
+    email: EmailStr | None = None
+
+
+class AdminBookingIn(BaseModel):
+    court_id: int
+    date: date
+    start: time
+    duration: int = 60
+    user_id: int | None = None          # cliente com conta
+    client: WalkInIn | None = None      # ou cliente de balcão
+    players: list[str] = Field(default_factory=list, max_length=7)
+    receive: Channel | None = None      # recebe agora no balcão; None = fica "a receber"
+    note: str | None = Field(default=None, max_length=200)
+
+
+@router.post("/reservations", status_code=201)
+async def admin_book(body: AdminBookingIn, admin: Admin, conn: Conn):
+    if (body.user_id is None) == (body.client is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Escolha um cliente cadastrado ou informe o nome do cliente de balcão.")
+    if body.receive in ("pix_online", "cartao_online"):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Escolha como o valor foi recebido no balcão.")
+    # cliente novo + reserva na mesma transação: se o horário acabou de ser tomado, não sobra cliente órfão
+    async with conn.transaction():
+        if body.user_id is not None:
+            owner = await conn.fetchrow("SELECT id, name, email, phone, role FROM users WHERE id = $1 AND deleted_at IS NULL", body.user_id)
+            if owner is None:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, "Cliente não encontrado.")
+        else:
+            c = body.client
+            email = (c.email or "").strip().lower() or None
+            if email and await conn.fetchval("SELECT 1 FROM users WHERE email = $1", email):
+                raise HTTPException(status.HTTP_409_CONFLICT, "Já existe uma conta com esse e-mail. Busque o cliente pelo nome ou e-mail.")
+            # cliente de balcão: conta sem acesso (e-mail interno e senha aleatória); se a recepção informar o
+            # e-mail, a pessoa pode entrar depois pedindo uma senha temporária
+            owner = await conn.fetchrow(
+                """INSERT INTO users (name, email, phone, password_hash) VALUES ($1, $2, $3, $4)
+                   RETURNING id, name, email, phone, role""",
+                c.name.strip(), email or f"balcao-{secrets.token_hex(5)}@padellobby.invalid",
+                (c.phone or "").strip() or None, hash_password(secrets.token_urlsafe(24)),
+            )
+        res = await svc.create(conn, owner, body.court_id, body.date, body.start, body.duration, "onsite", body.players, by_admin=True)
+    # recebimento fora da transação: caixa fechado não desfaz a reserva, só deixa "a receber"
+    warning = None
+    if body.receive:
+        try:
+            await svc.mark_paid(conn, await svc.fetch(conn, res["code"]), channel=body.receive, admin_id=admin["id"], note=body.note)
+        except HTTPException as e:
+            warning = f"Reserva criada, mas o recebimento não foi lançado: {e.detail} Ela ficou como \"a receber\"."
+    out = await svc.serialize(conn, await svc.fetch(conn, res["code"]), admin)
+    return {**out, "warning": warning}

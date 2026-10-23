@@ -6,6 +6,7 @@ import { useAuth } from "../auth";
 import { AiVisionCard } from "../components/AiVisionCard";
 import { BottomNav, MobileHeader, SiteFooter, SiteHeader, Spinner } from "../components/Layout";
 import { Shield } from "../components/Icons";
+import { useConfirm } from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { HAND_LABEL, initials, LEVEL_LABEL, money, SIDE_LABEL } from "../format";
 import { useClub } from "../hooks";
@@ -31,6 +32,7 @@ export default function Profile() {
   const { user, logout, refresh, applySession } = useAuth();
   const club = useClub().data;
   const toast = useToast();
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [params] = useSearchParams();
@@ -173,8 +175,8 @@ export default function Profile() {
               <div><button className="btn btn-primary" disabled={changePw.isPending}>Trocar senha</button></div>
             </form>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 18, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
-              <button type="button" className="btn btn-outline" disabled={logoutAll.isPending}
-                onClick={() => window.confirm("Desconectar todos os outros aparelhos?") && logoutAll.mutate()}>Sair de todos os outros aparelhos</button>
+              <button type="button" className="btn btn-outline" style={{ whiteSpace: "normal", height: "auto", minHeight: 48, textAlign: "center" }} disabled={logoutAll.isPending}
+                onClick={async () => { if (await confirm({ title: "Sair de todos os outros aparelhos?", message: "Celulares e computadores onde você entrou vão precisar fazer login de novo. Este aparelho continua conectado.", confirmLabel: "Desconectar" })) logoutAll.mutate(); }}>Sair de todos os outros aparelhos</button>
               <button type="button" className="btn btn-outline" onClick={() => { logout(); navigate("/"); }}>Sair desta conta</button>
             </div>
           </Section>
@@ -191,7 +193,7 @@ export default function Profile() {
             <details style={{ marginTop: 16 }}>
               <summary style={{ fontSize: 14, fontWeight: 800, color: "var(--red-deep)", cursor: "pointer" }}>Excluir minha conta</summary>
               <form style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}
-                onSubmit={(e) => { e.preventDefault(); if (window.confirm("Excluir a conta? Seus dados pessoais serão apagados e isso não pode ser desfeito.")) del.mutate(); }}>
+                onSubmit={async (e) => { e.preventDefault(); if (await confirm({ title: "Excluir sua conta?", message: "Seus dados pessoais serão apagados e você não conseguirá mais entrar. Isso não pode ser desfeito.", confirmLabel: "Excluir conta", cancelLabel: "Manter conta", danger: true })) del.mutate(); }}>
                 <p style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.5 }}>
                   Seu nome, e-mail, telefone e perfil serão apagados e você não conseguirá mais entrar. O histórico de reservas e pagamentos
                   fica guardado sem identificação, porque o clube precisa dele na contabilidade. Reservas futuras precisam ser canceladas antes.

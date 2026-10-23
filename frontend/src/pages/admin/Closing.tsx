@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../../api";
 import { Spinner } from "../../components/Layout";
+import { useConfirm } from "../../components/Modal";
 import { useToast } from "../../components/Toast";
 import { dayLabel, isoDay, money } from "../../format";
 import { CHANNEL_LABEL, hours, Kpi, Panel, plural } from "./shared";
@@ -39,6 +40,7 @@ export default function ClosingPage() {
   const [reason, setReason] = useState("");
   const qc = useQueryClient();
   const toast = useToast();
+  const confirm = useConfirm();
   const err = (e: unknown) => toast(e instanceof ApiError ? e.message : "Falhou.");
   const q = useQuery({ queryKey: ["admin", "closing", day], queryFn: () => api<Closing>(`/api/admin/closings/${day}`), refetchInterval: 30_000 });
   const month = day.slice(0, 8) + "01";
@@ -81,13 +83,13 @@ export default function ClosingPage() {
 
             <Panel title="Recebimentos por forma">
               <div className="table-scroll">
-                <table className="table" style={{ minWidth: 480 }}>
+                <table className="table rt" style={{ minWidth: 480 }}>
                   <thead><tr><th>FORMA</th><th>QTD.</th><th>RECEBIDO</th><th>ESTORNADO</th><th>LÍQUIDO</th></tr></thead>
                   <tbody>
                     {Object.entries(s.by_channel).map(([k, v]) => (
                       <tr key={k} style={{ opacity: v.count || v.refunded_cents ? 1 : 0.45 }}>
-                        <td>{CHANNEL_LABEL[k]}</td><td>{v.count}</td><td>{money(v.received_cents)}</td><td>{money(v.refunded_cents)}</td>
-                        <td style={{ fontWeight: 800 }}>{money(v.received_cents - v.refunded_cents)}</td>
+                        <td className="rt-title">{CHANNEL_LABEL[k]}</td><td data-label="Qtd.">{v.count}</td><td data-label="Recebido">{money(v.received_cents)}</td><td data-label="Estornado">{money(v.refunded_cents)}</td>
+                        <td data-label="Líquido" style={{ fontWeight: 800 }}>{money(v.received_cents - v.refunded_cents)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -102,9 +104,9 @@ export default function ClosingPage() {
                 <Kpi label="FICOU A RECEBER" value={money(s.games.open_cents)} sub={plural(s.games.open_count, "reserva no local", "reservas no local")} />
                 <Kpi label="SEM CHECK-IN" value={s.games.no_checkin} sub="jogos encerrados" />
               </div>
-              <table className="table">
+              <table className="table rt">
                 <thead><tr><th>QUADRA</th><th>JOGOS</th><th>HORAS</th><th>VALOR</th></tr></thead>
-                <tbody>{s.by_court.map((b) => <tr key={b.name}><td>{b.name}</td><td>{b.bookings}</td><td>{hours(b.minutes)}</td><td>{money(b.value_cents)}</td></tr>)}</tbody>
+                <tbody>{s.by_court.map((b) => <tr key={b.name}><td className="rt-title">{b.name}</td><td data-label="Jogos">{b.bookings}</td><td data-label="Horas">{hours(b.minutes)}</td><td data-label="Valor">{money(b.value_cents)}</td></tr>)}</tbody>
               </table>
             </Panel>
 
@@ -120,7 +122,7 @@ export default function ClosingPage() {
                     </p>
                   )}
                   <form className="no-print" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}
-                    onSubmit={(e) => { e.preventDefault(); if (window.confirm("Reabrir o caixa? Lançamentos de balcão voltam a ser aceitos nesse dia.")) reopen.mutate(); }}>
+                    onSubmit={async (e) => { e.preventDefault(); if (await confirm({ title: "Reabrir o caixa?", message: "Lançamentos de balcão voltam a ser aceitos nesse dia. O fechamento atual fica no histórico.", confirmLabel: "Reabrir caixa" })) reopen.mutate(); }}>
                     <label className="field" style={{ flex: "1 1 260px" }}>MOTIVO DA REABERTURA
                       <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ex.: faltou lançar um débito" minLength={3} required />
                     </label>

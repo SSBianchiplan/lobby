@@ -68,6 +68,20 @@ que imprime a senha aleatória uma única vez.
 trigger no banco recusa recebimentos de balcão nele; Pix e cartão online nunca são barrados (o dinheiro já entrou) e
 aparecem como "movimento após o fechamento". Reabrir exige motivo e fica no histórico do fechamento.
 
+**Reservar pela Disponibilidade**: clicar num horário livre abre um modal para reservar em nome de um cliente
+(busca de cadastrados ou cliente novo de balcão com nome/WhatsApp; durações que não cabem ficam desabilitadas;
+"recebido agora" por forma ou "fica a receber") ou bloquear o horário; clicar numa reserva abre detalhes com check-in,
+receber e cancelar; clicar num bloqueio permite removê-lo (`POST /api/admin/reservations`, sem limite por cliente nem
+janela de antecedência — funcionamento, sobreposição e bloqueios continuam valendo no banco).
+
+**Check-in por QR code**: o QR da reserva contém `https://<site>/checkin/PL-XXXXX`. O leitor da recepção
+(`/recepcao`, para tablet) usa a câmera — `BarcodeDetector` nativo quando existe, `jsQR` no Safari/iPad —, faz o
+check-in sozinho com retorno grande na tela, bipe e vibração, mantém a tela acesa e lista as chegadas do dia. Lido
+pela câmera comum do celular, o link leva o jogador à reserva e mostra ao admin um botão "Confirmar check-in".
+
+**Modais e confirmações** usam `<dialog>` nativo (Esc, foco preso, fundo escurecido; folha inferior no celular) —
+nenhum `window.confirm` no sistema. No celular, as tabelas viram cartões com as ações embaixo de cada linha.
+
 **Limpar dados de exemplo** (*Admin › Configurações*, só o master): mostra a prévia e, com `APAGAR` + senha, apaga numa
 transação as contas do seed (`jogador@padellobby.com.br` e `*@exemplo.com`, papel jogador) e tudo o que é delas —
 reservas, pagamentos, jogadores, eventos, notificações — e os fechamentos de dias com dinheiro de exemplo. Admins,
@@ -84,6 +98,8 @@ configurações, preços, feriados, quadras, bloqueios e dados reais ficam.
   incrementam `users.token_version` e derrubam os tokens antigos. Login trava 5 min após 5 senhas erradas no mesmo e-mail.
 - **Esqueci a senha** (não há envio de e-mail): a recepção gera uma senha temporária em *Admin › Usuários*; no próximo
   acesso a troca é obrigatória. Admin comum redefine jogadores; só o master redefine outros admins; a do master, ninguém.
+- **Card do torneio** (home web e mobile): calendário 2026 em 3 etapas (`components/TournamentCard.tsx`), com
+  contagem regressiva para a próxima, status por data e botão "Quero participar" (WhatsApp do clube ou e-mail).
 - **Card iaVision** (home web e mobile, perfil): CTA para [GPlanSiS|iaVision](https://aivision.gplansis.com) — visão
   computacional e IA na análise de atletas e partidas, online e offline, relatórios de biomecânica e desempenho.
 

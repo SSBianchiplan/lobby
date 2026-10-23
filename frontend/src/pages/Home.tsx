@@ -6,6 +6,7 @@ import { useAuth } from "../auth";
 import { useBooking } from "../booking";
 import { BottomNav, MobileHeader, SiteFooter, SiteHeader, Spinner } from "../components/Layout";
 import { AiVisionCard } from "../components/AiVisionCard";
+import { TournamentCard } from "../components/TournamentCard";
 import { Ball } from "../components/Icons";
 import { addMinutes, dayLabel, money } from "../format";
 import { pickDay, useAvailability, useCalendar, useClub, useIsMobile } from "../hooks";
@@ -117,7 +118,8 @@ function HomeWeb() {
           </form>
         </section>
 
-        <div className="container" style={{ paddingTop: 32 }}><AiVisionCard /></div>
+        <div className="container" style={{ paddingTop: 32 }}><TournamentCard /></div>
+        <div className="container" style={{ paddingTop: 24 }}><AiVisionCard /></div>
 
         <section aria-labelledby="estrutura-t" id="estrutura" className="container" style={{ paddingTop: 56 }}>
           <h2 id="estrutura-t" className="italic-title" style={{ fontSize: 32 }}>Estrutura <span className="accent">completa</span></h2>
@@ -261,6 +263,7 @@ function HomeMobile() {
         </div>
       </section>
 
+      <div style={{ margin: "16px 20px 0" }}><TournamentCard compact /></div>
       {club && (
         <section className="promo-strip" style={{ margin: "12px 20px 0" }}>
           <Ball size={26} />

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { api, ApiError, type Reservation } from "../../api";
+import { useConfirm } from "../../components/Modal";
 import { useToast } from "../../components/Toast";
 import { dayLabel, isoDay, money, PAY_LABEL, STATUS_LABEL } from "../../format";
 
@@ -81,8 +82,11 @@ export const periodLabel = (p: Period) => {
 
 export function useAdminActions(onChange: () => void) {
   const toast = useToast();
+  const confirm = useConfirm();
   const err = (e: unknown) => toast(e instanceof ApiError ? e.message : "Falhou.");
   const ok = (m: string) => () => { onChange(); toast(m); };
+  const cancel = useMutation({ mutationFn: (code: string) => api(`/api/reservations/${code}/cancel`, { method: "POST", json: { reason: "Cancelada pela administração" } }), onSuccess: ok("Reserva cancelada e estornada"), onError: err });
+  const actionsCancel = (code: string, onDone?: () => void) => cancel.mutate(code, { onSuccess: () => onDone?.() });
   return {
     checkin: useMutation({ mutationFn: (code: string) => api<Reservation>("/api/admin/checkin", { method: "POST", json: { code } }), onSuccess: ok("Check-in registrado"), onError: err }),
     receive: useMutation({
@@ -90,7 +94,12 @@ export function useAdminActions(onChange: () => void) {
         api(`/api/admin/reservations/${v.code}/receive`, { method: "POST", json: { channel: v.channel, note: v.note || null } }),
       onSuccess: ok("Recebimento lançado no caixa"), onError: err,
     }),
-    cancel: useMutation({ mutationFn: (code: string) => api(`/api/reservations/${code}/cancel`, { method: "POST", json: { reason: "Cancelada pela administração" } }), onSuccess: ok("Reserva cancelada e estornada"), onError: err }),
+    cancel,
+    /** Confirma e cancela (pela administração o estorno é sempre integral). */
+    askCancel: async (r: Reservation, onDone?: () => void) => {
+      if (await confirm({ title: `Cancelar ${r.code}?`, message: <>{r.court.name} · {dayLabel(r.date)} {r.start}–{r.end} · {r.owner?.name}.{r.payment_status === "paid" && <> O valor de <strong>{money(r.price_cents)}</strong> será estornado.</>} O cliente é avisado.</>, confirmLabel: "Cancelar reserva", cancelLabel: "Manter", danger: true }))
+        actionsCancel(r.code, onDone);
+    },
   };
 }
 export type AdminActions = ReturnType<typeof useAdminActions>;
@@ -117,16 +126,16 @@ function ReservationRow({ r, actions, showDate }: { r: Reservation; actions: Adm
   const receivable = (r.payment_status === "onsite" && ["confirmed", "checked_in", "completed"].includes(r.status)) || r.status === "pending";
   return (
     <tr>
-      <td style={{ fontWeight: 800, whiteSpace: "nowrap" }}>{showDate && <div>{dayLabel(r.date)}</div>}{r.start}–{r.end}</td>
-      <td style={{ whiteSpace: "nowrap" }}>{r.court.name}</td>
-      <td>{r.owner?.name}<div className="muted" style={{ fontSize: 12 }}>{r.owner?.phone || r.owner?.email} · {r.players.length} jog.</div></td>
-      <td><code style={{ fontWeight: 800, whiteSpace: "nowrap" }}>{r.code}</code></td>
-      <td style={{ whiteSpace: "nowrap" }}>{money(r.price_cents)}<div style={{ fontSize: 12, marginTop: 2 }}><span className="muted">{PAY_LABEL[r.payment_method]} · </span><span className={`badge ${ps.cls}`} style={{ padding: "1px 8px", fontSize: 11 }}>{ps.text}</span></div></td>
-      <td><span className={`badge ${st.cls}`}>{st.text}</span></td>
-      <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
-        {r.status === "confirmed" && <button className="btn btn-dark btn-sm" onClick={() => actions.checkin.mutate(r.code)}>Check-in</button>}{" "}
-        {receivable && <ReceiveButton r={r} actions={actions} />}{" "}
-        {r.can_cancel && <button className="btn btn-outline btn-sm" onClick={() => window.confirm(`Cancelar ${r.code} e estornar?`) && actions.cancel.mutate(r.code)}>Cancelar</button>}
+      <td className="rt-title" style={{ fontWeight: 800, whiteSpace: "nowrap" }}>{showDate && <div>{dayLabel(r.date)}</div>}{r.start}–{r.end}<span className="hide-desktop" style={{ fontWeight: 600, color: "var(--muted)" }}> · {r.court.name}</span></td>
+      <td className="rt-hide-m" style={{ whiteSpace: "nowrap" }}>{r.court.name}</td>
+      <td data-label="Cliente"><span>{r.owner?.name}<div className="muted" style={{ fontSize: 12 }}>{r.owner?.phone || r.owner?.email} · {r.players.length} jog.</div></span></td>
+      <td data-label="Código"><code style={{ fontWeight: 800, whiteSpace: "nowrap" }}>{r.code}</code></td>
+      <td data-label="Valor" style={{ whiteSpace: "nowrap" }}><span>{money(r.price_cents)}<div style={{ fontSize: 12, marginTop: 2 }}><span className="muted">{PAY_LABEL[r.payment_method]} · </span><span className={`badge ${ps.cls}`} style={{ padding: "1px 8px", fontSize: 11 }}>{ps.text}</span></div></span></td>
+      <td data-label="Situação"><span className={`badge ${st.cls}`}>{st.text}</span></td>
+      <td className="rt-actions" style={{ whiteSpace: "nowrap", textAlign: "right" }}>
+        {r.status === "confirmed" && <button className="btn btn-dark btn-sm" onClick={() => actions.checkin.mutate(r.code)}>Check-in</button>}
+        {receivable && <ReceiveButton r={r} actions={actions} />}
+        {r.can_cancel && <button className="btn btn-outline btn-sm" onClick={() => actions.askCancel(r)}>Cancelar</button>}
       </td>
     </tr>
   );
@@ -136,7 +145,7 @@ export function ResTable({ items, actions, showDate = false }: { items: Reservat
   if (!items.length) return <p className="empty">Nenhuma reserva.</p>;
   return (
     <div className="table-scroll">
-      <table className="table" style={{ minWidth: 960 }}>
+      <table className="table rt" style={{ minWidth: 960 }}>
         <thead><tr><th>HORÁRIO</th><th>QUADRA</th><th>CLIENTE</th><th>CÓDIGO</th><th>VALOR</th><th>SITUAÇÃO</th><th><span className="sr-only">Ações</span></th></tr></thead>
         <tbody>{items.map((r) => <ReservationRow key={r.code} r={r} actions={actions} showDate={showDate} />)}</tbody>
       </table>

@@ -6,8 +6,9 @@ import { useBooking } from "../booking";
 import { BottomNav, MobileHeader, SiteFooter, SiteHeader, Spinner } from "../components/Layout";
 import { Ball, Share } from "../components/Icons";
 import { QR } from "../components/QR";
+import { useConfirm } from "../components/Modal";
 import { useToast } from "../components/Toast";
-import { dayLabel, isoDay, money, parseDay, PAY_LABEL, relativeDay, STATUS_LABEL } from "../format";
+import { checkinUrl, dayLabel, isoDay, money, parseDay, PAY_LABEL, relativeDay, STATUS_LABEL } from "../format";
 import { useClub, useIsMobile } from "../hooks";
 
 export const useMine = (scope: "upcoming" | "history" | "cancelled" | "all") =>
@@ -30,7 +31,8 @@ export async function shareReservation(r: Reservation, toast: (m: string) => voi
 export function useCancel() {
   const qc = useQueryClient();
   const toast = useToast();
-  return useMutation({
+  const confirm = useConfirm();
+  const m = useMutation({
     mutationFn: (r: Reservation) => api<{ refund: boolean; free: boolean }>(`/api/reservations/${r.code}/cancel`, { method: "POST", json: {} }),
     onSuccess: (res) => {
       qc.invalidateQueries();
@@ -38,13 +40,19 @@ export function useCancel() {
     },
     onError: (e) => toast(e instanceof ApiError ? e.message : "Não foi possível cancelar."),
   });
-}
-
-export function confirmCancel(r: Reservation) {
-  const msg = r.free_cancel || r.payment_status !== "paid"
-    ? `Cancelar a reserva de ${dayLabel(r.date)} às ${r.start}?`
-    : `Faltam menos de ${Math.round((new Date(r.starts_at).getTime() - new Date(r.free_cancel_until).getTime()) / 3600000)} h para o jogo: o valor pago NÃO será estornado. Cancelar mesmo assim?`;
-  return window.confirm(msg);
+  /** Pergunta antes (avisando quando não há estorno) e cancela. */
+  const request = async (r: Reservation, opts?: { onSuccess?: () => void }) => {
+    const late = !(r.free_cancel || r.payment_status !== "paid");
+    const ok = await confirm({
+      title: "Cancelar reserva?",
+      message: late
+        ? <>Faltam menos de {Math.round((new Date(r.starts_at).getTime() - new Date(r.free_cancel_until).getTime()) / 3600000)} h para o jogo: o valor pago <strong>não será estornado</strong>.</>
+        : <>{r.court.name} · {dayLabel(r.date)} às {r.start}.{r.payment_status === "paid" && " O valor pago será estornado."}</>,
+      confirmLabel: "Cancelar reserva", cancelLabel: "Manter reserva", danger: true,
+    });
+    if (ok) m.mutate(r, opts);
+  };
+  return { ...m, request };
 }
 
 /** Próxima data com o mesmo dia da semana (para "Repetir"). */
@@ -147,7 +155,7 @@ function NextCardMobile({ r, today }: { r: Reservation; today?: string }) {
         </div>
         {r.status === "pending"
           ? <Link to={`/reservas/${r.code}`} className="btn btn-white btn-sm">Pagar Pix</Link>
-          : <QR value={r.code} size={72} label={`QR code de check-in da reserva ${r.code}`} />}
+          : <QR value={checkinUrl(r.code)} size={72} label={`QR code de check-in da reserva ${r.code}`} />}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "0 18px 18px" }}>
         {r.is_owner ? (
@@ -157,7 +165,7 @@ function NextCardMobile({ r, today }: { r: Reservation; today?: string }) {
         )}
         {r.can_cancel ? (
           <button className="btn btn-ghost-light" style={{ height: 46, fontSize: 14 }} disabled={cancel.isPending}
-            onClick={() => confirmCancel(r) && cancel.mutate(r)}>Cancelar</button>
+            onClick={() => cancel.request(r)}>Cancelar</button>
         ) : (
           <Link className="btn btn-ghost-light" style={{ height: 46, fontSize: 14 }} to={`/reservas/${r.code}`}>Detalhes</Link>
         )}
@@ -183,10 +191,10 @@ function NextCardWeb({ r, today }: { r: Reservation; today?: string }) {
             {r.is_owner && r.status !== "pending" && <button className="btn btn-white" onClick={() => shareReservation(r, toast)}>Compartilhar no WhatsApp</button>}
             <a className="btn btn-ghost-light" href={`/api/reservations/${r.code}/calendar.ics`}>Adicionar à agenda</a>
             <Link className="btn btn-ghost-light" to={`/reservas/${r.code}`}>Detalhes</Link>
-            {r.can_cancel && <button className="btn btn-link-light" disabled={cancel.isPending} onClick={() => confirmCancel(r) && cancel.mutate(r)}>Cancelar</button>}
+            {r.can_cancel && <button className="btn btn-link-light" disabled={cancel.isPending} onClick={() => cancel.request(r)}>Cancelar</button>}
           </div>
         </div>
-        {r.status !== "pending" && <QR value={r.code} size={130} label={`QR code de check-in da reserva ${r.code}`} />}
+        {r.status !== "pending" && <QR value={checkinUrl(r.code)} size={130} label={`QR code de check-in da reserva ${r.code}`} />}
       </div>
     </section>
   );

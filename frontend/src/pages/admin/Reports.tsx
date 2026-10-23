@@ -82,22 +82,22 @@ export default function Reports() {
             </div>
             {!rows.length ? <p className="empty">Sem locações no período.</p> : (
               <div className="table-scroll">
-                <table className="table" style={{ minWidth: 640 }}>
+                <table className="table rt" style={{ minWidth: 640 }}>
                   <thead><tr><th>{GROUPS.find(([k]) => k === group)![1].replace("Por ", "").toUpperCase()}</th><th>LOCAÇÕES</th><th>HORAS</th><th>FATURAMENTO</th><th>RECEBIDO</th><th style={{ width: "28%" }}><span className="sr-only">Proporção</span></th></tr></thead>
                   <tbody>
                     {rows.map((r) => (
                       <tr key={String(r.key)}>
-                        <td style={{ fontWeight: 800 }}>{label(group, r)}</td>
-                        <td>{r.rentals}</td><td>{hours(r.minutes)}</td><td>{money(r.gross_cents)}</td><td>{money(r.paid_cents)}</td>
-                        <td><div className="bar"><i style={{ width: `${(r.gross_cents / max) * 100}%` }} /></div></td>
+                        <td className="rt-title" style={{ fontWeight: 800 }}>{label(group, r)}</td>
+                        <td data-label="Locações">{r.rentals}</td><td data-label="Horas">{hours(r.minutes)}</td><td data-label="Faturamento">{money(r.gross_cents)}</td><td data-label="Recebido">{money(r.paid_cents)}</td>
+                        <td><div className="bar" style={{ flex: 1 }}><i style={{ width: `${(r.gross_cents / max) * 100}%` }} /></div></td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot><tr style={{ fontWeight: 900 }}>
-                    <td style={{ padding: 12 }}>Total</td><td style={{ padding: 12 }}>{group === "client" ? rows.reduce((a, r) => a + r.rentals, 0) : d.rentals}</td>
-                    <td style={{ padding: 12 }}>{hours(rows.reduce((a, r) => a + r.minutes, 0))}</td>
-                    <td style={{ padding: 12 }}>{money(rows.reduce((a, r) => a + r.gross_cents, 0))}</td>
-                    <td style={{ padding: 12 }}>{money(rows.reduce((a, r) => a + r.paid_cents, 0))}</td><td />
+                    <td className="rt-title" style={{ padding: 12 }}>Total</td><td data-label="Locações" style={{ padding: 12 }}>{group === "client" ? rows.reduce((a, r) => a + r.rentals, 0) : d.rentals}</td>
+                    <td data-label="Horas" style={{ padding: 12 }}>{hours(rows.reduce((a, r) => a + r.minutes, 0))}</td>
+                    <td data-label="Faturamento" style={{ padding: 12 }}>{money(rows.reduce((a, r) => a + r.gross_cents, 0))}</td>
+                    <td data-label="Recebido" style={{ padding: 12 }}>{money(rows.reduce((a, r) => a + r.paid_cents, 0))}</td><td className="rt-hide-m" />
                   </tr></tfoot>
                 </table>
                 {group === "client" && <p className="muted" style={{ fontSize: 12, fontWeight: 600, marginTop: 8 }}>Os 50 clientes com maior faturamento no período.</p>}

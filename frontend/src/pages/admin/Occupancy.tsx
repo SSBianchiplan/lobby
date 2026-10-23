@@ -4,6 +4,7 @@ import { api } from "../../api";
 import { Spinner } from "../../components/Layout";
 import { addMinutes, dayLabel, isoDay, STATUS_LABEL } from "../../format";
 import { hours, Panel, PAY_STATUS } from "./shared";
+import { BlockModal, ReservationModal, SlotModal, type SlotTarget } from "./SlotModals";
 
 type Cell =
   | { s: "free" } | { s: "past" }
@@ -41,9 +42,13 @@ export default function Occupancy() {
   const [days, setDays] = useState(1);
   const q = useQuery({ queryKey: ["admin", "occupancy", start, days], queryFn: () => api<Occ>(`/api/admin/occupancy?start=${start}&days=${days}`), refetchInterval: 30_000 });
   const d = q.data;
+  const [slot, setSlot] = useState<SlotTarget | null>(null);
+  const [resCode, setResCode] = useState<string | null>(null);
+  const [block, setBlock] = useState<{ id: number; reason: string; label: string } | null>(null);
 
   return (
     <div className="stack gap-18">
+      <p className="muted" style={{ fontSize: 13, fontWeight: 600 }}>Clique num horário livre para reservar ou bloquear; numa reserva para ver detalhes, receber, fazer check-in ou cancelar.</p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
         <label className="field" style={{ width: 180 }}>A PARTIR DE
           <input className="input" type="date" value={start} onChange={(e) => e.target.value && setStart(e.target.value)} />
@@ -77,11 +82,29 @@ export default function Occupancy() {
                       <span className="occ-time">{t.endsWith(":00") ? t : ""}</span>
                       {d.courts.map((c) => {
                         const cell = day.cells[c.id]![i]!;
+                        const cls = `occ-cell ${cellClass(cell)}${cell.s === "res" && !cell.first ? " cont" : ""}`;
+                        const title = cellTitle(cell, c.name, t);
+                        const label = <>
+                          {cell.s === "res" && cell.first && <><b>{cell.code}</b> {cell.who.split(" ")[0]}</>}
+                          {cell.s === "block" && (i === 0 || day.cells[c.id]![i - 1]!.s !== "block") && cell.reason}
+                        </>;
+                        if (cell.s === "past") return <div key={c.id} className={cls} title={title} />;
+                        const open = () => {
+                          if (cell.s === "free") {
+                            // minutos livres seguidos a partir daqui (para no próximo ocupado ou no intervalo)
+                            let freeMin = 0;
+                            for (let j = i; j < day.times.length && day.cells[c.id]![j]!.s === "free"; j++) {
+                              if (j > i && toMin(day.times[j]!) - toMin(day.times[j - 1]!) > 30) break;
+                              freeMin += 30;
+                            }
+                            setSlot({ courtId: c.id, courtName: c.name, date: day.date, time: t, dayTimes: day.times, freeMinutes: freeMin });
+                          }
+                          else if (cell.s === "res") setResCode(cell.code);
+                          else setBlock({ id: cell.id, reason: cell.reason, label: `${c.name} · ${dayLabel(day.date)} · a partir de ${t}` });
+                        };
                         return (
-                          <div key={c.id} className={`occ-cell ${cellClass(cell)}${cell.s === "res" && !cell.first ? " cont" : ""}`} title={cellTitle(cell, c.name, t)}>
-                            {cell.s === "res" && cell.first && <><b>{cell.code}</b> {cell.who.split(" ")[0]}</>}
-                            {cell.s === "block" && (i === 0 || day.cells[c.id]![i - 1]!.s !== "block") && cell.reason}
-                          </div>
+                          <button key={c.id} type="button" className={cls} title={title} onClick={open}
+                            aria-label={cell.s === "free" ? `Reservar ou bloquear ${c.name} às ${t}` : title}>{label}</button>
                         );
                       })}
                     </div>
@@ -92,6 +115,9 @@ export default function Occupancy() {
           </Panel>
         );
       })}
+      <SlotModal target={slot} onClose={() => setSlot(null)} />
+      <ReservationModal code={resCode} onClose={() => setResCode(null)} />
+      <BlockModal block={block} onClose={() => setBlock(null)} />
     </div>
   );
 }

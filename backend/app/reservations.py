@@ -119,7 +119,9 @@ async def quote(conn: asyncpg.Connection, court_id: int, d: date, start: time, d
 
 
 async def create(conn: asyncpg.Connection, user: asyncpg.Record, court_id: int, d: date, start: time,
-                 duration: int, method: str, guests: list[str]) -> dict:
+                 duration: int, method: str, guests: list[str], by_admin: bool = False) -> dict:
+    """`user` é o dono da reserva. `by_admin`: a recepção reservando em nome do cliente — sem limite de
+    reservas futuras nem janela de antecedência (funcionamento, sobreposição e bloqueios continuam valendo)."""
     settings = await load_settings(conn)
     if duration not in settings["durations"]:
         raise bad("Duração não disponível.")
@@ -138,7 +140,7 @@ async def create(conn: asyncpg.Connection, user: asyncpg.Record, court_id: int, 
         raise bad("Esse horário não cabe no funcionamento do clube.")
     if starts_at <= now:
         raise bad("Esse horário já passou.")
-    if d > now.date() + timedelta(days=int(settings["booking_horizon_days"])):
+    if not by_admin and d > now.date() + timedelta(days=int(settings["booking_horizon_days"])):
         raise bad(f"Reservas abrem com até {settings['booking_horizon_days']} dias de antecedência.")
 
     q = (await Pricer.load(conn, settings)).quote(starts_at, duration, info.holiday is not None)
@@ -150,7 +152,7 @@ async def create(conn: asyncpg.Connection, user: asyncpg.Record, court_id: int, 
             "SELECT count(*) FROM reservations WHERE user_id = $1 AND status IN ('pending', 'confirmed') AND lower(period) > now()",
             user["id"],
         )
-        if active >= int(settings["max_active_per_user"]) and user["role"] != "admin":
+        if active >= int(settings["max_active_per_user"]) and user["role"] != "admin" and not by_admin:
             raise conflict(f"Você já tem {active} reservas futuras. Jogue ou cancele uma para reservar outra.")
 
         if method == "pix":

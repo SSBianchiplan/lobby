@@ -6,9 +6,9 @@ import { Players } from "../components/BookingParts";
 import { Back, Ball, Copy, Share } from "../components/Icons";
 import { QR } from "../components/QR";
 import { useToast } from "../components/Toast";
-import { dayLabel, money, PAY_LABEL, STATUS_LABEL } from "../format";
+import { checkinUrl, dayLabel, money, PAY_LABEL, STATUS_LABEL } from "../format";
 import { useCountdown, useIsMobile } from "../hooks";
-import { confirmCancel, inviteText, shareReservation, useCancel } from "./Reservations";
+import { inviteText, shareReservation, useCancel } from "./Reservations";
 
 export default function ReservationDetail() {
   const { code = "" } = useParams();
@@ -95,7 +95,7 @@ export default function ReservationDetail() {
             {["confirmed", "pending"].includes(r.status) && <a className="btn btn-outline" href={`/api/reservations/${r.code}/calendar.ics`}>Adicionar à agenda</a>}
             {r.can_cancel && (
               <button className="btn btn-outline" style={{ color: "var(--red-deep)" }} disabled={cancel.isPending}
-                onClick={() => confirmCancel(r) && cancel.mutate(r, { onSuccess: () => q.refetch() })}>Cancelar reserva</button>
+                onClick={() => cancel.request(r, { onSuccess: () => q.refetch() })}>Cancelar reserva</button>
             )}
           </div>
         </div>
@@ -104,7 +104,7 @@ export default function ReservationDetail() {
       {["confirmed", "checked_in"].includes(r.status) && (
         <aside className="card grow-1" style={{ padding: 24, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
           <h2 className="italic-title" style={{ fontSize: 20 }}>Check-in</h2>
-          <div style={{ border: "1px solid var(--border)", borderRadius: 20 }}><QR value={r.code} size={180} label={`QR code de check-in da reserva ${r.code}`} /></div>
+          <div style={{ border: "1px solid var(--border)", borderRadius: 20 }}><QR value={checkinUrl(r.code)} size={180} label={`QR code de check-in da reserva ${r.code}`} /></div>
           <p style={{ fontSize: 13, fontWeight: 500, color: "var(--muted)" }}>Mostre na recepção ao chegar. O check-in abre 1 h antes do jogo.</p>
           {r.checked_in_at && <p className="alert alert-ok">Check-in feito às {new Date(r.checked_in_at).toLocaleTimeString("pt-BR", { timeStyle: "short" })}</p>}
         </aside>

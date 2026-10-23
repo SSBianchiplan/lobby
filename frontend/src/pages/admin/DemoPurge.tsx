@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../../api";
 import { Spinner } from "../../components/Layout";
+import { useConfirm } from "../../components/Modal";
 import { useToast } from "../../components/Toast";
 import { money } from "../../format";
 
@@ -15,6 +16,7 @@ type Preview = {
 export default function DemoPurge() {
   const qc = useQueryClient();
   const toast = useToast();
+  const confirmDialog = useConfirm();
   const q = useQuery({ queryKey: ["admin", "demo-data"], queryFn: () => api<Preview>("/api/admin/maintenance/demo-data") });
   const [confirm, setConfirm] = useState("");
   const [password, setPassword] = useState("");
@@ -57,7 +59,10 @@ export default function DemoPurge() {
             {d.invited_elsewhere > 0 && <> Em {d.invited_elsewhere} reserva(s) real(is) um jogador de exemplo foi convidado: o nome fica, o vínculo com a conta sai.</>}
           </p>
           <form style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, alignItems: "end" }}
-            onSubmit={(e) => { e.preventDefault(); if (ready && window.confirm(`Apagar definitivamente ${d.users} contas e ${d.reservations} reservas de exemplo?`)) purge.mutate(); }}>
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (ready && await confirmDialog({ title: "Apagar dados de exemplo?", message: <>Serão apagadas definitivamente <strong>{d.users} contas</strong> e <strong>{d.reservations} reservas</strong> de exemplo, com seus pagamentos. Não dá para desfazer.</>, confirmLabel: "Apagar definitivamente", danger: true })) purge.mutate();
+            }}>
             <label className="field">DIGITE APAGAR PARA CONFIRMAR
               <input className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="off" placeholder="APAGAR" />
             </label>

@@ -51,11 +51,11 @@ export default function Payments() {
       {d && (
         <Panel title="Por forma de pagamento">
           <div className="table-scroll">
-            <table className="table" style={{ minWidth: 520 }}>
+            <table className="table rt" style={{ minWidth: 520 }}>
               <thead><tr><th>FORMA</th><th>LANÇAMENTOS</th><th>RECEBIDO</th><th>ESTORNADO</th><th>LÍQUIDO</th></tr></thead>
               <tbody>
                 {Object.entries(d.by_channel).filter(([, v]) => v.count || v.refunded_cents).map(([k, v]) => (
-                  <tr key={k}><td>{CHANNEL_LABEL[k]}</td><td>{v.count}</td><td>{money(v.received_cents)}</td><td>{money(v.refunded_cents)}</td><td style={{ fontWeight: 800 }}>{money(v.received_cents - v.refunded_cents)}</td></tr>
+                  <tr key={k}><td className="rt-title">{CHANNEL_LABEL[k]}</td><td data-label="Lançamentos">{v.count}</td><td data-label="Recebido">{money(v.received_cents)}</td><td data-label="Estornado">{money(v.refunded_cents)}</td><td data-label="Líquido" style={{ fontWeight: 800 }}>{money(v.received_cents - v.refunded_cents)}</td></tr>
                 ))}
               </tbody>
             </table>
@@ -76,18 +76,18 @@ export default function Payments() {
       </>}>
         {!d ? <Spinner /> : !d.items.length ? <p className="empty">Nenhum lançamento.</p> : (
           <div className="table-scroll">
-            <table className="table" style={{ minWidth: 860 }}>
+            <table className="table rt" style={{ minWidth: 860 }}>
               <thead><tr><th>QUANDO</th><th>TIPO</th><th>FORMA</th><th>RESERVA</th><th>CLIENTE</th><th>LANÇADO POR</th><th style={{ textAlign: "right" }}>VALOR</th></tr></thead>
               <tbody>
                 {d.items.map((m) => (
                   <tr key={`${m.kind}-${m.id}`}>
-                    <td style={{ whiteSpace: "nowrap" }}>{fmtDateTime(m.at)}</td>
-                    <td><span className={`badge ${m.kind === "received" ? "badge-ok" : "badge-off"}`}>{m.kind === "received" ? "Recebimento" : "Estorno"}</span></td>
-                    <td>{CHANNEL_LABEL[m.channel]}</td>
-                    <td><code style={{ fontWeight: 800, whiteSpace: "nowrap" }}>{m.code}</code><div className="muted" style={{ fontSize: 12 }}>{m.court} · {fmtDateTime(m.starts_at)}</div></td>
-                    <td>{m.client}{m.note && <div className="muted" style={{ fontSize: 12 }}>{m.note}</div>}</td>
-                    <td>{m.admin ?? <span className="muted">online</span>}</td>
-                    <td style={{ textAlign: "right", fontWeight: 800, color: m.amount_cents < 0 ? "var(--red-deep)" : undefined }}>{money(m.amount_cents)}</td>
+                    <td className="rt-title" style={{ whiteSpace: "nowrap" }}>{fmtDateTime(m.at)}<span className="hide-desktop" style={{ float: "right", color: m.amount_cents < 0 ? "var(--red-deep)" : undefined }}>{money(m.amount_cents)}</span></td>
+                    <td data-label="Tipo"><span className={`badge ${m.kind === "received" ? "badge-ok" : "badge-off"}`}>{m.kind === "received" ? "Recebimento" : "Estorno"}</span></td>
+                    <td data-label="Forma">{CHANNEL_LABEL[m.channel]}</td>
+                    <td data-label="Reserva"><span><code style={{ fontWeight: 800, whiteSpace: "nowrap" }}>{m.code}</code><div className="muted" style={{ fontSize: 12 }}>{m.court} · {fmtDateTime(m.starts_at)}</div></span></td>
+                    <td data-label="Cliente"><span>{m.client}{m.note && <div className="muted" style={{ fontSize: 12 }}>{m.note}</div>}</span></td>
+                    <td data-label="Lançado por">{m.admin ?? <span className="muted">online</span>}</td>
+                    <td className="rt-hide-m" style={{ textAlign: "right", fontWeight: 800, color: m.amount_cents < 0 ? "var(--red-deep)" : undefined }}>{money(m.amount_cents)}</td>
                   </tr>
                 ))}
               </tbody>

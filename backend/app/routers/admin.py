@@ -136,8 +136,12 @@ async def checkin(body: CheckinIn, admin: Admin, conn: Conn):
     if r["status"] != "confirmed":
         raise HTTPException(status.HTTP_409_CONFLICT, f"Reserva com status '{r['status']}' não permite check-in.")
     now = now_local()
-    if not (r["starts_at"] - timedelta(minutes=60) <= now <= r["ends_at"]):
-        raise HTTPException(status.HTTP_409_CONFLICT, "Check-in abre 1 h antes do início e vai até o fim do jogo.")
+    opens = r["starts_at"] - timedelta(minutes=60)
+    if now < opens:
+        when = f"{opens:%H:%M}" if opens.date() == now.date() else f"{opens:%d/%m às %H:%M}"
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Cedo demais: o check-in abre {'às ' if opens.date() == now.date() else 'em '}{when} (1 h antes do jogo).")
+    if now > r["ends_at"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Esse jogo terminou às {r['ends_at']:%H:%M}.")
     await conn.execute("UPDATE reservations SET status = 'checked_in', checked_in_at = now() WHERE id = $1", r["id"])
     return await svc.serialize(conn, await svc.fetch(conn, r["code"]), admin)
 

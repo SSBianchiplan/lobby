@@ -3,6 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { api, ApiError } from "../../api";
 import { useAuth } from "../../auth";
 import { Spinner } from "../../components/Layout";
+import { useConfirm } from "../../components/Modal";
 import { useToast } from "../../components/Toast";
 import { LEVEL_LABEL, money } from "../../format";
 import { Panel } from "./shared";
@@ -19,6 +20,7 @@ export default function Users() {
   const [role, setRole] = useState("");
   const qc = useQueryClient();
   const toast = useToast();
+  const confirm = useConfirm();
   const q = useQuery({
     queryKey: ["admin", "users", term, role], placeholderData: keepPreviousData,
     queryFn: () => api<Row[]>(`/api/admin/users?q=${encodeURIComponent(term)}${role ? `&role=${role}` : ""}`),
@@ -59,26 +61,26 @@ export default function Users() {
       {!master && <p className="muted" style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Só o admin master promove ou rebaixa administradores.</p>}
       {!q.data ? <Spinner /> : !q.data.length ? <p className="empty">Ninguém encontrado.</p> : (
         <div className="table-scroll">
-          <table className="table" style={{ minWidth: 1000 }}>
+          <table className="table rt" style={{ minWidth: 1000 }}>
             <thead><tr><th>NOME</th><th>CONTATO</th><th>CATEGORIA</th><th>PAPEL</th><th>LOCAÇÕES</th><th>PAGO</th><th>ÚLTIMO JOGO</th><th><span className="sr-only">Ações</span></th></tr></thead>
             <tbody>
               {q.data.map((u) => (
                 <tr key={u.id}>
-                  <td style={{ fontWeight: 800 }}>{u.name}{u.must_change_password && <div className="muted" style={{ fontSize: 11 }}>senha temporária pendente</div>}</td>
-                  <td>{u.email}<div className="muted" style={{ fontSize: 12 }}>{[u.phone, u.city].filter(Boolean).join(" · ")}</div></td>
-                  <td>{u.level ? LEVEL_LABEL[u.level] : "—"}</td>
-                  <td>{u.is_master ? <span className="badge badge-red">Admin master</span> : u.role === "admin" ? <span className="badge badge-ball">Admin</span> : <span className="badge badge-off">Jogador</span>}</td>
-                  <td>{u.rentals}</td>
-                  <td>{money(u.paid_cents)}</td>
-                  <td>{u.last_rental ? new Date(u.last_rental).toLocaleDateString("pt-BR") : "—"}</td>
-                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                  <td className="rt-title" style={{ fontWeight: 800 }}>{u.name}{u.must_change_password && <div className="muted" style={{ fontSize: 11 }}>senha temporária pendente</div>}</td>
+                  <td data-label="Contato"><span>{u.email}<div className="muted" style={{ fontSize: 12 }}>{[u.phone, u.city].filter(Boolean).join(" · ")}</div></span></td>
+                  <td data-label="Categoria">{u.level ? LEVEL_LABEL[u.level] : "—"}</td>
+                  <td data-label="Papel">{u.is_master ? <span className="badge badge-red">Admin master</span> : u.role === "admin" ? <span className="badge badge-ball">Admin</span> : <span className="badge badge-off">Jogador</span>}</td>
+                  <td data-label="Locações">{u.rentals}</td>
+                  <td data-label="Pago">{money(u.paid_cents)}</td>
+                  <td data-label="Último jogo">{u.last_rental ? new Date(u.last_rental).toLocaleDateString("pt-BR") : "—"}</td>
+                  <td className="rt-actions" style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                     {!u.is_master && (u.role !== "admin" || master) && (
-                      <button className="btn btn-soft btn-sm" style={{ marginRight: 6 }} disabled={reset.isPending}
-                        onClick={() => window.confirm(`Gerar uma senha temporária para ${u.name}? A senha atual deixa de valer e as sessões abertas são encerradas.`) && reset.mutate(u)}>Redefinir senha</button>
+                      <button className="btn btn-soft btn-sm" disabled={reset.isPending}
+                        onClick={async () => { if (await confirm({ title: "Redefinir senha?", message: <>Gerar uma senha temporária para <strong>{u.name}</strong>? A senha atual deixa de valer e as sessões abertas são encerradas.</>, confirmLabel: "Gerar senha temporária" })) reset.mutate(u); }}>Redefinir senha</button>
                     )}
                     {master && !u.is_master && (u.role === "admin"
-                      ? <button className="btn btn-outline btn-sm" onClick={() => window.confirm(`Tirar o acesso de administração de ${u.name}?`) && setRoleM.mutate({ id: u.id, role: "player" })}>Rebaixar</button>
-                      : <button className="btn btn-dark btn-sm" onClick={() => window.confirm(`Tornar ${u.name} administrador?`) && setRoleM.mutate({ id: u.id, role: "admin" })}>Tornar admin</button>)}
+                      ? <button className="btn btn-outline btn-sm" onClick={async () => { if (await confirm({ title: "Rebaixar administrador?", message: <><strong>{u.name}</strong> perde o acesso à administração e volta a ser jogador.</>, confirmLabel: "Rebaixar", danger: true })) setRoleM.mutate({ id: u.id, role: "player" }); }}>Rebaixar</button>
+                      : <button className="btn btn-dark btn-sm" onClick={async () => { if (await confirm({ title: "Tornar administrador?", message: <><strong>{u.name}</strong> passa a ver e operar toda a administração: agenda, pagamentos, caixa e relatórios.</>, confirmLabel: "Tornar admin" })) setRoleM.mutate({ id: u.id, role: "admin" }); }}>Tornar admin</button>)}
                   </td>
                 </tr>
               ))}

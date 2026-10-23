@@ -12,6 +12,8 @@ import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import Admin from "./pages/admin/Admin";
 import Terms from "./pages/Terms";
+import CheckinLink from "./pages/CheckinLink";
+import CheckinKiosk from "./pages/admin/CheckinKiosk";
 
 export function RequireAuth({ children, admin }: { children: ReactNode; admin?: boolean }) {
   const { user, ready } = useAuth();
@@ -43,6 +45,8 @@ export default function App() {
         <Route path="/entrar" element={<Login />} />
         <Route path="/cadastro" element={<Login register />} />
         <Route path="/termos" element={<Terms />} />
+        <Route path="/checkin/:code" element={<CheckinLink />} />
+        <Route path="/recepcao" element={<RequireAuth admin><CheckinKiosk /></RequireAuth>} />
         <Route path="/perfil" element={<RequireAuth><Profile /></RequireAuth>} />
         <Route path="/admin/*" element={<RequireAuth admin><Admin /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" replace />} />

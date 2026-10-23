@@ -35,3 +35,8 @@ export const LEVEL_LABEL: Record<string, string> = {
 export const SIDE_LABEL: Record<string, string> = { direita: "Direita (drive)", esquerda: "Esquerda (revés)", ambos: "Os dois lados" };
 export const HAND_LABEL: Record<string, string> = { destro: "Destro", canhoto: "Canhoto" };
 export const PAY_LABEL: Record<string, string> = { pix: "Pix", card: "Cartão", onsite: "No local" };
+
+/** Conteúdo do QR de check-in: um link (a câmera comum do celular abre algo útil) com o código da reserva. */
+export const checkinUrl = (code: string) => `${location.origin}/checkin/${code}`;
+/** Extrai o código PL-XXXXX de um QR (link novo ou código puro dos QRs antigos). */
+export const parseCheckinCode = (text: string) => text.toUpperCase().match(/PL-[23456789A-HJ-NP-Z]{5}/)?.[0] ?? null;

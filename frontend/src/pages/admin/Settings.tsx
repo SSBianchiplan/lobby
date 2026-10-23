@@ -71,14 +71,14 @@ export default function Settings() {
         <p className="muted" style={{ fontSize: 13, fontWeight: 500, marginTop: 6 }}>O preço é calculado a cada 30 min; vale a faixa de maior prioridade. Marque "feriado" para aplicar a faixa em feriados.</p>
         {rulesQ.isLoading ? <Spinner /> : (
           <div className="table-scroll" style={{ marginTop: 10 }}>
-            <table className="table" style={{ minWidth: 900 }}>
+            <table className="table rt" style={{ minWidth: 900 }}>
               <thead><tr><th>NOME</th><th>DIAS</th><th>INÍCIO</th><th>FIM</th><th>R$/HORA</th><th>PRIOR.</th><th>PROMO</th><th /></tr></thead>
               <tbody>
                 {rules.map((r, i) => (
                   <tr key={i}>
-                    <td><input className="input" style={{ height: 40 }} aria-label="Nome" value={r.label} onChange={(e) => upd(i, { label: e.target.value })} /></td>
-                    <td>
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                    <td className="rt-title"><input className="input" style={{ height: 40 }} aria-label="Nome" value={r.label} onChange={(e) => upd(i, { label: e.target.value })} /></td>
+                    <td data-label="Dias">
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
                         {WD.map((w, k) => (
                           <label key={w} style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 2 }}>
                             <input type="checkbox" checked={r.weekdays.includes(k + 1)}
@@ -90,12 +90,12 @@ export default function Settings() {
                         </label>
                       </div>
                     </td>
-                    <td><input className="input" style={{ height: 40 }} type="time" aria-label="Início" value={r.starts.slice(0, 5)} onChange={(e) => upd(i, { starts: e.target.value })} /></td>
-                    <td><input className="input" style={{ height: 40 }} type="time" aria-label="Fim" value={r.ends.slice(0, 5)} onChange={(e) => upd(i, { ends: e.target.value === "23:59" ? "23:59:59" : e.target.value })} /></td>
-                    <td><input className="input" style={{ height: 40, width: 100 }} type="number" min={1} step={1} aria-label="Reais por hora" value={r.cents_per_hour / 100} onChange={(e) => upd(i, { cents_per_hour: Math.round(Number(e.target.value) * 100) })} /></td>
-                    <td><input className="input" style={{ height: 40, width: 70 }} type="number" aria-label="Prioridade" value={r.priority} onChange={(e) => upd(i, { priority: Number(e.target.value) })} /></td>
-                    <td><input type="checkbox" aria-label="Promoção" checked={r.is_promo} onChange={(e) => upd(i, { is_promo: e.target.checked })} /></td>
-                    <td><button className="text-link" onClick={() => setRules(rules.filter((_, j) => j !== i))}>Remover</button></td>
+                    <td data-label="Início"><input className="input" style={{ height: 40, maxWidth: 140 }} type="time" aria-label="Início" value={r.starts.slice(0, 5)} onChange={(e) => upd(i, { starts: e.target.value })} /></td>
+                    <td data-label="Fim"><input className="input" style={{ height: 40, maxWidth: 140 }} type="time" aria-label="Fim" value={r.ends.slice(0, 5)} onChange={(e) => upd(i, { ends: e.target.value === "23:59" ? "23:59:59" : e.target.value })} /></td>
+                    <td data-label="R$/hora"><input className="input" style={{ height: 40, width: 100 }} type="number" min={1} step={1} aria-label="Reais por hora" value={r.cents_per_hour / 100} onChange={(e) => upd(i, { cents_per_hour: Math.round(Number(e.target.value) * 100) })} /></td>
+                    <td data-label="Prioridade"><input className="input" style={{ height: 40, width: 70 }} type="number" aria-label="Prioridade" value={r.priority} onChange={(e) => upd(i, { priority: Number(e.target.value) })} /></td>
+                    <td data-label="Promoção"><input type="checkbox" aria-label="Promoção" checked={r.is_promo} onChange={(e) => upd(i, { is_promo: e.target.checked })} /></td>
+                    <td className="rt-actions"><button className="btn btn-outline btn-sm" onClick={() => setRules(rules.filter((_, j) => j !== i))}>Remover faixa</button></td>
                   </tr>
                 ))}
               </tbody>
