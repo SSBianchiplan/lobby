@@ -2,11 +2,13 @@
 
 import asyncio
 import logging
+from datetime import date
 
 import asyncpg
 
 from . import db
 from .config import get_settings
+from .domain import now_local
 from .notify import notify, notify_players
 
 log = logging.getLogger("padel.jobs")
@@ -51,12 +53,36 @@ async def send_reminders(conn: asyncpg.Connection) -> int:
     return len(rows)
 
 
+async def complete_classes(conn: asyncpg.Connection) -> int:
+    return len(await conn.fetch(
+        "UPDATE class_sessions SET status = 'done' WHERE status = 'scheduled' AND upper(period) < now() RETURNING id"))
+
+
+_last_generation: date | None = None
+
+
+async def roll_class_calendar(conn: asyncpg.Connection) -> int:
+    """Uma vez por dia, estende o calendário de cada turma ativa (mantém sempre ~4 semanas à frente)."""
+    global _last_generation
+    today = now_local().date()
+    if _last_generation == today:
+        return 0
+    from .routers.classes import generate_sessions  # import tardio: evita ciclo jobs → routers
+    created = 0
+    for g in await conn.fetch("SELECT id FROM class_groups WHERE active"):
+        created += (await generate_sessions(conn, g["id"]))["created"]
+    _last_generation = today
+    return created
+
+
 async def run_once(conn: asyncpg.Connection) -> dict:
     async with conn.transaction():
         return {
             "expired": await expire_holds(conn),
             "completed": await complete_past(conn),
             "reminders": await send_reminders(conn),
+            "classes_done": await complete_classes(conn),
+            "classes_created": await roll_class_calendar(conn),
         }
 
 

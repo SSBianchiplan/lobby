@@ -7,10 +7,12 @@ import { AiVisionCard } from "../components/AiVisionCard";
 import { BottomNav, MobileHeader, SiteFooter, SiteHeader, Spinner } from "../components/Layout";
 import { Shield } from "../components/Icons";
 import { useConfirm } from "../components/Modal";
+import { ThemeChooser } from "../components/Theme";
 import { useToast } from "../components/Toast";
 import { HAND_LABEL, initials, LEVEL_LABEL, money, SIDE_LABEL } from "../format";
 import { useClub } from "../hooks";
 import { PasswordInput, PlayerFields } from "./Login";
+import MyClasses from "./MyClasses";
 
 type Me = User & {
   stats: { played: number; minutes: number; cancelled: number; upcoming: number; spent_cents: number; favorite_court: string | null };
@@ -157,6 +159,8 @@ export default function Profile() {
           </form>
         </Section>
 
+        <MyClasses />
+
         <div style={{ marginTop: 16 }}><AiVisionCard compact /></div>
 
         <div ref={securityRef} style={{ scrollMarginTop: 90 }}>
@@ -181,6 +185,11 @@ export default function Profile() {
             </div>
           </Section>
         </div>
+
+        <Section title="Aparência">
+          <ThemeChooser />
+          <p className="muted" style={{ fontSize: 13, fontWeight: 500, marginTop: 10 }}>"Automático" segue o tema claro/escuro do seu aparelho.</p>
+        </Section>
 
         <Section title="Privacidade e dados">
           <p className="muted" style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.5 }}>

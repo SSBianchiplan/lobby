@@ -181,7 +181,11 @@ async def create(conn: asyncpg.Connection, user: asyncpg.Record, court_id: int, 
             except asyncpg.UniqueViolationError as e:
                 if e.constraint_name != "reservations_code_key":
                     raise
-            except asyncpg.ExclusionViolationError:
+            except asyncpg.ExclusionViolationError as e:
+                if e.constraint_name == "reservations_class":
+                    raise conflict("Esse horário é de aula nessa quadra. Escolha outro.")
+                if e.constraint_name == "reservations_blocked":
+                    raise conflict("Esse horário está bloqueado. Escolha outro.")
                 raise conflict("Esse horário acabou de ser reservado por outra pessoa. Escolha outro.")
         if row is None:
             raise conflict("Não foi possível gerar o código da reserva. Tente de novo.")

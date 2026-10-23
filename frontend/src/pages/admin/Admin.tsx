@@ -7,6 +7,7 @@ import { useToast } from "../../components/Toast";
 import { dayLabel, isoDay, money } from "../../format";
 import { useClub } from "../../hooks";
 import Bookings from "./Bookings";
+import Classes from "./Classes";
 import ClosingPage from "./Closing";
 import Occupancy from "./Occupancy";
 import Payments from "./Payments";
@@ -17,7 +18,7 @@ import Users from "./Users";
 
 const TABS: [string, string][] = [
   ["/admin", "Painel"], ["/admin/agenda", "Agenda do dia"], ["/admin/agendamentos", "Agendamentos"],
-  ["/admin/disponibilidade", "Disponibilidade"], ["/admin/pagamentos", "Pagamentos"], ["/admin/fechamento", "Fechamento"],
+  ["/admin/disponibilidade", "Disponibilidade"], ["/admin/aulas", "Aulas"], ["/admin/pagamentos", "Pagamentos"], ["/admin/fechamento", "Fechamento"],
   ["/admin/relatorios", "Relatórios"], ["/admin/usuarios", "Usuários"], ["/admin/config", "Configurações"],
 ];
 
@@ -40,6 +41,7 @@ export default function Admin() {
             <Route path="agendamentos" element={<Bookings />} />
             <Route path="reservas" element={<Bookings />} />
             <Route path="disponibilidade" element={<Occupancy />} />
+            <Route path="aulas/*" element={<Classes />} />
             <Route path="pagamentos" element={<Payments />} />
             <Route path="fechamento" element={<ClosingPage />} />
             <Route path="relatorios" element={<Reports />} />

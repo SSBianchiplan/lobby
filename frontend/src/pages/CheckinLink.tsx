@@ -22,7 +22,7 @@ export default function CheckinLink() {
   const r = q.data;
 
   return (
-    <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <main style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <section className="card card-pad" style={{ width: "100%", maxWidth: 440, boxShadow: "var(--shadow-float)", display: "flex", flexDirection: "column", gap: 14 }}>
         <Logo height={44} />
         <h1 className="italic-title" style={{ fontSize: 26 }}>Check-in <code>{code}</code></h1>
@@ -36,6 +36,54 @@ export default function CheckinLink() {
             {r.status === "checked_in" && <p className="alert alert-cream" style={{ padding: 12, borderRadius: 12, fontWeight: 700 }}>✓ Check-in feito.</p>}
           </>
         )}
+        <Link to="/recepcao" style={{ fontSize: 14, fontWeight: 700 }}>Abrir o leitor da recepção</Link>
+      </section>
+    </main>
+  );
+}
+
+/** Destino do QR pessoal do aluno lido pela câmera comum: admin marca presença; os demais vão para o perfil. */
+export function StudentLink() {
+  const { token = "" } = useParams();
+  const { user, ready } = useAuth();
+  const go = useMutation({
+    mutationFn: () => api<{ user: { name: string }; session: { name: string }; already: boolean }>("/api/admin/classes/checkin", { method: "POST", json: { token } }),
+  });
+  if (!ready) return <Spinner />;
+  if (!user) return <Navigate to={`/entrar?next=${encodeURIComponent(`/aluno/${token}`)}`} replace />;
+  if (user.role !== "admin") return <Navigate to="/perfil#aulas" replace />;
+  return (
+    <main style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <section className="card card-pad" style={{ width: "100%", maxWidth: 440, boxShadow: "var(--shadow-float)", display: "flex", flexDirection: "column", gap: 14 }}>
+        <Logo height={44} />
+        <h1 className="italic-title" style={{ fontSize: 26 }}>Presença na aula</h1>
+        {go.data ? <p className="alert alert-cream" style={{ padding: 12, borderRadius: 12, fontWeight: 700 }}>✓ {go.data.user.name} · {go.data.session.name}{go.data.already ? " (já estava presente)" : ""}</p>
+          : <button className="btn btn-primary btn-lg" disabled={go.isPending} onClick={() => go.mutate()}>Marcar presença na aula de agora</button>}
+        {go.error && <p className="form-error" role="alert">{go.error instanceof ApiError ? go.error.message : "Falhou."}</p>}
+        <Link to="/recepcao" style={{ fontSize: 14, fontWeight: 700 }}>Abrir o leitor da recepção</Link>
+      </section>
+    </main>
+  );
+}
+
+/** Destino do QR do professor lido pela câmera comum: admin registra a chegada e inicia a aula. */
+export function CoachLink() {
+  const { token = "" } = useParams();
+  const { user, ready } = useAuth();
+  const go = useMutation({
+    mutationFn: () => api<{ coach: { name: string }; session: { name: string }; already: boolean }>("/api/admin/classes/coach-checkin", { method: "POST", json: { token } }),
+  });
+  if (!ready) return <Spinner />;
+  if (!user) return <Navigate to={`/entrar?next=${encodeURIComponent(`/professor/${token}`)}`} replace />;
+  if (user.role !== "admin") return <Navigate to="/" replace />;
+  return (
+    <main style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <section className="card card-pad" style={{ width: "100%", maxWidth: 440, boxShadow: "var(--shadow-float)", display: "flex", flexDirection: "column", gap: 14 }}>
+        <Logo height={44} />
+        <h1 className="italic-title" style={{ fontSize: 26 }}>Chegada do professor</h1>
+        {go.data ? <p className="alert alert-cream" style={{ padding: 12, borderRadius: 12, fontWeight: 700 }}>✓ {go.data.coach.name} · {go.data.session.name}{go.data.already ? " (aula já estava iniciada)" : " · aula iniciada"}</p>
+          : <button className="btn btn-primary btn-lg" disabled={go.isPending} onClick={() => go.mutate()}>Registrar chegada e iniciar a aula</button>}
+        {go.error && <p className="form-error" role="alert">{go.error instanceof ApiError ? go.error.message : "Falhou."}</p>}
         <Link to="/recepcao" style={{ fontSize: 14, fontWeight: 700 }}>Abrir o leitor da recepção</Link>
       </section>
     </main>

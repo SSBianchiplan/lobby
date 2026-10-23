@@ -6,12 +6,12 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import db, jobs
+from . import db, jobs, preview
 from .config import get_settings
-from .routers import admin, auth, backoffice, bookings, club
+from .routers import admin, auth, backoffice, bookings, classes, club
 
 logging.basicConfig(level=logging.INFO)
 mimetypes.add_type("application/manifest+json", ".webmanifest")
@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Padel Lobby API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins, allow_methods=["*"], allow_headers=["*"])
 
-for r in (auth.router, club.router, bookings.router, admin.router, backoffice.router):
+for r in (auth.router, club.router, bookings.router, admin.router, backoffice.router, classes.router):
     app.include_router(r)
 
 
@@ -58,4 +58,9 @@ if DIST.exists():
         file = (DIST / path).resolve()
         if path and file.is_relative_to(DIST) and file.is_file():
             return FileResponse(file)
-        return FileResponse(DIST / "index.html")
+        meta = None
+        if m := preview.INVITE.match(path):
+            async with db.pool().acquire() as conn:
+                meta = await preview.invite_meta(conn, m.group(1))
+        page = preview.render((DIST / "index.html").read_text(), str(request.base_url), str(request.url), meta)
+        return HTMLResponse(page, headers={"Cache-Control": "no-cache"})

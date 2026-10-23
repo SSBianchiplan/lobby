@@ -12,7 +12,7 @@ import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import Admin from "./pages/admin/Admin";
 import Terms from "./pages/Terms";
-import CheckinLink from "./pages/CheckinLink";
+import CheckinLink, { CoachLink, StudentLink } from "./pages/CheckinLink";
 import CheckinKiosk from "./pages/admin/CheckinKiosk";
 
 export function RequireAuth({ children, admin }: { children: ReactNode; admin?: boolean }) {
@@ -46,6 +46,8 @@ export default function App() {
         <Route path="/cadastro" element={<Login register />} />
         <Route path="/termos" element={<Terms />} />
         <Route path="/checkin/:code" element={<CheckinLink />} />
+        <Route path="/aluno/:token" element={<StudentLink />} />
+        <Route path="/professor/:token" element={<CoachLink />} />
         <Route path="/recepcao" element={<RequireAuth admin><CheckinKiosk /></RequireAuth>} />
         <Route path="/perfil" element={<RequireAuth><Profile /></RequireAuth>} />
         <Route path="/admin/*" element={<RequireAuth admin><Admin /></RequireAuth>} />

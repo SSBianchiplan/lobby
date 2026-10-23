@@ -14,9 +14,26 @@ import { useClub, useIsMobile } from "../hooks";
 export const useMine = (scope: "upcoming" | "history" | "cancelled" | "all") =>
   useQuery({ queryKey: ["mine", scope], queryFn: () => api<Reservation[]>(`/api/reservations/mine?scope=${scope}`), refetchInterval: 30_000 });
 
+/** Convite para o WhatsApp: formatação do próprio app (*negrito*, _itálico_), dados do jogo e chamada para confirmar. */
 export function inviteText(r: Reservation) {
   const url = `${window.location.origin}/convite/${r.invite_token}`;
-  return `Bora jogar padel? ${r.court.name} · ${dayLabel(r.date)} · ${r.start}–${r.end} no Padel Lobby. Entra no jogo: ${url}`;
+  const open = Math.max(0, r.max_players - r.players.length);
+  const spots = open === 0 ? "Time completo! Mas chega junto pra torcer 😄"
+    : open === 1 ? "⚡ *Falta só 1 vaga* — quem chegar primeiro leva!"
+    : `👥 *Faltam ${open} vagas* (${r.players.length}/${r.max_players} confirmados)`;
+  return [
+    "🎾 *BORA JOGAR PADEL?*",
+    "",
+    `📍 *${r.court.name}* · Padel Lobby (Centro, Rio Grande)`,
+    `🗓️ *${dayLabel(r.date)}* · ⏰ *${r.start}–${r.end}*`,
+    spots,
+    `💰 ${money(r.per_player_cents)} por jogador`,
+    "",
+    `👉 *Confirma tua vaga agora:*`,
+    url,
+    "",
+    "_Chega 10 min antes pra aquecer. Te vejo na quadra!_ 💪",
+  ].join("\n");
 }
 
 export async function shareReservation(r: Reservation, toast: (m: string) => void) {
@@ -234,7 +251,7 @@ function HistoryList({ items, today }: { items: Reservation[]; today?: string })
   return (
     <ul style={{ listStyle: "none", margin: "10px 0 0", padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
       {items.map((r) => (
-        <li key={r.code} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 16, background: "#fff" }}>
+        <li key={r.code} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 16, background: "var(--surface)" }}>
           <Ball size={28} />
           <Link to={`/reservas/${r.code}`} style={{ flex: 1, color: "inherit", textDecoration: "none" }}>
             <p style={{ fontSize: 14, fontWeight: 800 }}>{dayLabel(r.date)} · {r.start}</p>

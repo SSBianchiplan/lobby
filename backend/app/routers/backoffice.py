@@ -109,6 +109,10 @@ async def occupancy(_: Admin, conn: Conn, start: date | None = None, days: int =
     )
     blocks = await conn.fetch(
         "SELECT id, court_id, lower(period) AS s, upper(period) AS e, reason FROM blocks WHERE period && tstzrange($1, $2)", s, e)
+    lessons = await conn.fetch(
+        """SELECT x.id, x.court_id, lower(x.period) AS s, upper(x.period) AS e, coalesce(x.title, g.name, 'Aula') AS name, c.name AS coach
+           FROM class_sessions x JOIN coaches c ON c.id = x.coach_id LEFT JOIN class_groups g ON g.id = x.group_id
+           WHERE x.period && tstzrange($1, $2) AND x.status <> 'cancelled'""", s, e)
     now = now_local()
     out_days = []
     for info in infos:
@@ -125,7 +129,11 @@ async def occupancy(_: Admin, conn: Conn, start: date | None = None, days: int =
                     cell: dict = {"s": "free"}
                     r = next((r for r in res if r["court_id"] == c["id"] and r["starts_at"] < b and a < r["ends_at"]), None)
                     blk = next((x for x in blocks if x["court_id"] in (None, c["id"]) and x["s"] < b and a < x["e"]), None)
-                    if r is not None:
+                    les = next((x for x in lessons if x["court_id"] == c["id"] and x["s"] < b and a < x["e"]), None)
+                    if les is not None:
+                        cell = {"s": "class", "id": les["id"], "name": les["name"], "coach": les["coach"], "first": les["s"] >= a}
+                        day["booked_minutes"][c["id"]] += 30
+                    elif r is not None:
                         cell = {"s": "res", "code": r["code"], "status": r["status"], "pay": r["payment_status"],
                                 "who": r["owner_name"], "first": r["starts_at"] >= a}
                         day["booked_minutes"][c["id"]] += 30
@@ -153,17 +161,21 @@ async def payments(
         """
         SELECT * FROM (
             SELECT 'received' AS kind, p.paid_at AS at, p.amount_cents, p.id, p.channel, p.note, p.received_by,
-                   r.code, c.name AS court, u.name AS client, lower(r.period) AS starts_at, a.name AS admin
-            FROM payments p JOIN reservations r ON r.id = p.reservation_id JOIN courts c ON c.id = r.court_id
-                 JOIN users u ON u.id = r.user_id LEFT JOIN users a ON a.id = p.received_by
+                   coalesce(r.code, 'Aulas'), coalesce(c.name, ch.description), u.name AS client,
+                   coalesce(lower(r.period), ch.created_at) AS starts_at, a.name AS admin
+            FROM payments p LEFT JOIN reservations r ON r.id = p.reservation_id LEFT JOIN courts c ON c.id = r.court_id
+                 LEFT JOIN student_charges ch ON ch.id = p.charge_id
+                 JOIN users u ON u.id = coalesce(r.user_id, ch.user_id) LEFT JOIN users a ON a.id = p.received_by
             WHERE p.status IN ('paid', 'refunded') AND p.paid_at >= $1 AND p.paid_at < $2
             UNION ALL
             SELECT 'refunded', p.refunded_at, -p.amount_cents, p.id, p.channel, r.cancel_reason, p.received_by,
-                   r.code, c.name, u.name, lower(r.period), a.name
-            FROM payments p JOIN reservations r ON r.id = p.reservation_id JOIN courts c ON c.id = r.court_id
-                 JOIN users u ON u.id = r.user_id LEFT JOIN users a ON a.id = p.received_by
+                   coalesce(r.code, 'Aulas'), coalesce(c.name, ch.description), u.name,
+                   coalesce(lower(r.period), ch.created_at), a.name
+            FROM payments p LEFT JOIN reservations r ON r.id = p.reservation_id LEFT JOIN courts c ON c.id = r.court_id
+                 LEFT JOIN student_charges ch ON ch.id = p.charge_id
+                 JOIN users u ON u.id = coalesce(r.user_id, ch.user_id) LEFT JOIN users a ON a.id = p.received_by
             WHERE p.status = 'refunded' AND p.refunded_at >= $1 AND p.refunded_at < $2
-        ) m
+        ) m(kind, at, amount_cents, id, channel, note, received_by, code, court, client, starts_at, admin)
         WHERE ($3::text IS NULL OR channel = $3) AND ($4 = 'all' OR kind = $4)
         ORDER BY at DESC
         """,
@@ -574,31 +586,36 @@ class AdminBookingIn(BaseModel):
     note: str | None = Field(default=None, max_length=200)
 
 
+async def resolve_client(conn: asyncpg.Connection, user_id: int | None, client: "WalkInIn | None") -> asyncpg.Record:
+    """Cliente com conta (user_id) ou cliente de balcão (conta sem acesso: e-mail interno e senha aleatória;
+    se a recepção informar o e-mail, a pessoa pode entrar depois pedindo uma senha temporária)."""
+    if (user_id is None) == (client is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Escolha um cliente cadastrado ou informe o nome do cliente de balcão.")
+    if user_id is not None:
+        owner = await conn.fetchrow("SELECT id, name, email, phone, role FROM users WHERE id = $1 AND deleted_at IS NULL", user_id)
+        if owner is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Cliente não encontrado.")
+        return owner
+    email = (client.email or "").strip().lower() or None
+    if email and await conn.fetchval("SELECT 1 FROM users WHERE email = $1", email):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Já existe uma conta com esse e-mail. Busque o cliente pelo nome ou e-mail.")
+    return await conn.fetchrow(
+        """INSERT INTO users (name, email, phone, password_hash) VALUES ($1, $2, $3, $4)
+           RETURNING id, name, email, phone, role""",
+        client.name.strip(), email or f"balcao-{secrets.token_hex(5)}@padellobby.invalid",
+        (client.phone or "").strip() or None, hash_password(secrets.token_urlsafe(24)),
+    )
+
+
 @router.post("/reservations", status_code=201)
 async def admin_book(body: AdminBookingIn, admin: Admin, conn: Conn):
-    if (body.user_id is None) == (body.client is None):
+    if (body.user_id is None) == (body.client is None):  # valida antes de abrir a transação
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Escolha um cliente cadastrado ou informe o nome do cliente de balcão.")
     if body.receive in ("pix_online", "cartao_online"):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Escolha como o valor foi recebido no balcão.")
     # cliente novo + reserva na mesma transação: se o horário acabou de ser tomado, não sobra cliente órfão
     async with conn.transaction():
-        if body.user_id is not None:
-            owner = await conn.fetchrow("SELECT id, name, email, phone, role FROM users WHERE id = $1 AND deleted_at IS NULL", body.user_id)
-            if owner is None:
-                raise HTTPException(status.HTTP_404_NOT_FOUND, "Cliente não encontrado.")
-        else:
-            c = body.client
-            email = (c.email or "").strip().lower() or None
-            if email and await conn.fetchval("SELECT 1 FROM users WHERE email = $1", email):
-                raise HTTPException(status.HTTP_409_CONFLICT, "Já existe uma conta com esse e-mail. Busque o cliente pelo nome ou e-mail.")
-            # cliente de balcão: conta sem acesso (e-mail interno e senha aleatória); se a recepção informar o
-            # e-mail, a pessoa pode entrar depois pedindo uma senha temporária
-            owner = await conn.fetchrow(
-                """INSERT INTO users (name, email, phone, password_hash) VALUES ($1, $2, $3, $4)
-                   RETURNING id, name, email, phone, role""",
-                c.name.strip(), email or f"balcao-{secrets.token_hex(5)}@padellobby.invalid",
-                (c.phone or "").strip() or None, hash_password(secrets.token_urlsafe(24)),
-            )
+        owner = await resolve_client(conn, body.user_id, body.client)
         res = await svc.create(conn, owner, body.court_id, body.date, body.start, body.duration, "onsite", body.players, by_admin=True)
     # recebimento fora da transação: caixa fechado não desfaz a reserva, só deixa "a receber"
     warning = None

@@ -43,3 +43,16 @@ export const parseCheckinCode = (text: string) => text.toUpperCase().match(/PL-[
 
 /** srcset das fotos das quadras (cada foto existe em -800.webp e -1600.webp). */
 export const photoSrcSet = (src: string) => `${src.replace("-1600.webp", "-800.webp")} 800w, ${src} 1600w`;
+
+/** QR pessoal do aluno (check-in na aula): link com o token de check-in. */
+export const studentQrUrl = (token: string) => `${location.origin}/aluno/${token}`;
+export const parseStudentToken = (text: string) => text.match(/\/aluno\/([0-9a-f-]{36})/i)?.[1] ?? null;
+
+/** QR do professor (chegada que inicia a aula). */
+export const coachQrUrl = (token: string) => `${location.origin}/professor/${token}`;
+export const parseCoachToken = (text: string) => text.match(/\/professor\/([0-9a-f-]{36})/i)?.[1] ?? null;
+
+/** "prof. Lucas" sem repetir o título quando o nome cadastrado já começa com "Prof."/"Professor(a)". */
+export const coachLabel = (name: string) => (/^prof(\.|essor|essora)?\s/i.test(name) ? name : `prof. ${name}`);
+/** Primeiro nome, pulando títulos ("Prof. Lucas Tavares" → "Lucas"). */
+export const firstName = (name: string) => name.replace(/^prof(\.|essor|essora)?\s+/i, "").split(" ")[0] ?? name;

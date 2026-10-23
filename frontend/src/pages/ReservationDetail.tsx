@@ -5,15 +5,17 @@ import { BottomNav, SiteFooter, SiteHeader, Spinner } from "../components/Layout
 import { Players } from "../components/BookingParts";
 import { Back, Ball, Copy, Share } from "../components/Icons";
 import { QR } from "../components/QR";
+import { TicketActions } from "../components/Ticket";
 import { useToast } from "../components/Toast";
 import { checkinUrl, dayLabel, money, PAY_LABEL, STATUS_LABEL } from "../format";
-import { useCountdown, useIsMobile } from "../hooks";
+import { useClub, useCountdown, useIsMobile } from "../hooks";
 import { inviteText, shareReservation, useCancel } from "./Reservations";
 
 export default function ReservationDetail() {
   const { code = "" } = useParams();
   const mobile = useIsMobile();
   const toast = useToast();
+  const club = useClub().data;
   const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["reservation", code],
@@ -107,6 +109,14 @@ export default function ReservationDetail() {
           <div style={{ border: "1px solid var(--border)", borderRadius: 20 }}><QR value={checkinUrl(r.code)} size={180} label={`QR code de check-in da reserva ${r.code}`} /></div>
           <p style={{ fontSize: 13, fontWeight: 500, color: "var(--muted)" }}>Mostre na recepção ao chegar. O check-in abre 1 h antes do jogo.</p>
           {r.checked_in_at && <p className="alert alert-ok">Check-in feito às {new Date(r.checked_in_at).toLocaleTimeString("pt-BR", { timeStyle: "short" })}</p>}
+          <TicketActions onToast={toast} shareText={`Meu horário no Padel Lobby: ${r.court.name}, ${dayLabel(r.date)} às ${r.start}. Código ${r.code}.`}
+            data={{
+              kind: "CHECK-IN DA QUADRA", title: r.court.name, subtitle: `${dayLabel(r.date)} · ${r.start}–${r.end} · ${r.duration} min`,
+              status: r.status === "checked_in" ? "EM QUADRA" : "CONFIRMADA",
+              rows: [["Jogadores", r.players.map((p) => p.name).join(", ")], ["Responsável", r.owner_name], ["Local", club ? `${club.address} · ${club.district.split("·")[1]?.trim() ?? ""}` : "Padel Lobby"]],
+              qr: checkinUrl(r.code), code: r.code, footer: "Apresente este QR code na recepção. O check-in abre 1 h antes do jogo.",
+              filename: `checkin-${r.code}.png`,
+            }} />
         </aside>
       )}
     </div>

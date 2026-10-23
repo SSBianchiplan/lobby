@@ -4,11 +4,13 @@ import { api } from "../../api";
 import { Spinner } from "../../components/Layout";
 import { addMinutes, dayLabel, isoDay, STATUS_LABEL } from "../../format";
 import { hours, Panel, PAY_STATUS } from "./shared";
+import { SessionModal } from "./Classes";
 import { BlockModal, ReservationModal, SlotModal, type SlotTarget } from "./SlotModals";
 
 type Cell =
   | { s: "free" } | { s: "past" }
   | { s: "block"; reason: string; id: number }
+  | { s: "class"; id: number; name: string; coach: string; first: boolean }
   | { s: "res"; code: string; status: string; pay: string; who: string; first: boolean };
 type Day = {
   date: string; weekday: string; holiday: string | null; open: boolean; times: string[];
@@ -18,7 +20,7 @@ type Occ = { courts: { id: number; number: number; name: string }[]; days: Day[]
 
 const LEGEND: [string, string][] = [
   ["occ-free", "Livre"], ["occ-res", "Reservado e pago"], ["occ-open", "Reservado · a receber"],
-  ["occ-pending", "Aguardando Pix"], ["occ-block", "Bloqueado"], ["occ-past", "Já passou"],
+  ["occ-pending", "Aguardando Pix"], ["occ-class", "Aula"], ["occ-block", "Bloqueado"], ["occ-past", "Já passou"],
 ];
 
 const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h! * 60 + m!; };
@@ -27,6 +29,7 @@ function cellClass(c: Cell) {
   if (c.s === "free") return "occ-free";
   if (c.s === "past") return "occ-past";
   if (c.s === "block") return "occ-block";
+  if (c.s === "class") return "occ-class";
   if (c.status === "pending") return "occ-pending";
   return c.pay === "onsite" ? "occ-open" : "occ-res";
 }
@@ -34,6 +37,7 @@ function cellClass(c: Cell) {
 function cellTitle(c: Cell, court: string, t: string) {
   if (c.s === "res") return `${court} ${t} · ${c.code} · ${c.who} · ${STATUS_LABEL[c.status]?.text} · ${PAY_STATUS[c.pay]?.text}`;
   if (c.s === "block") return `${court} ${t} · bloqueado: ${c.reason}`;
+  if (c.s === "class") return `${court} ${t} · aula: ${c.name} · ${c.coach}`;
   return `${court} ${t} · ${c.s === "free" ? "livre" : "passado"}`;
 }
 
@@ -45,6 +49,7 @@ export default function Occupancy() {
   const [slot, setSlot] = useState<SlotTarget | null>(null);
   const [resCode, setResCode] = useState<string | null>(null);
   const [block, setBlock] = useState<{ id: number; reason: string; label: string } | null>(null);
+  const [lesson, setLesson] = useState<number | null>(null);
 
   return (
     <div className="stack gap-18">
@@ -82,10 +87,11 @@ export default function Occupancy() {
                       <span className="occ-time">{t.endsWith(":00") ? t : ""}</span>
                       {d.courts.map((c) => {
                         const cell = day.cells[c.id]![i]!;
-                        const cls = `occ-cell ${cellClass(cell)}${cell.s === "res" && !cell.first ? " cont" : ""}`;
+                        const cls = `occ-cell ${cellClass(cell)}${(cell.s === "res" || cell.s === "class") && !cell.first ? " cont" : ""}`;
                         const title = cellTitle(cell, c.name, t);
                         const label = <>
                           {cell.s === "res" && cell.first && <><b>{cell.code}</b> {cell.who.split(" ")[0]}</>}
+                          {cell.s === "class" && cell.first && <><b>Aula</b> {cell.name}</>}
                           {cell.s === "block" && (i === 0 || day.cells[c.id]![i - 1]!.s !== "block") && cell.reason}
                         </>;
                         if (cell.s === "past") return <div key={c.id} className={cls} title={title} />;
@@ -100,6 +106,7 @@ export default function Occupancy() {
                             setSlot({ courtId: c.id, courtName: c.name, date: day.date, time: t, dayTimes: day.times, freeMinutes: freeMin });
                           }
                           else if (cell.s === "res") setResCode(cell.code);
+                          else if (cell.s === "class") setLesson(cell.id);
                           else setBlock({ id: cell.id, reason: cell.reason, label: `${c.name} · ${dayLabel(day.date)} · a partir de ${t}` });
                         };
                         return (
@@ -118,6 +125,7 @@ export default function Occupancy() {
       <SlotModal target={slot} onClose={() => setSlot(null)} />
       <ReservationModal code={resCode} onClose={() => setResCode(null)} />
       <BlockModal block={block} onClose={() => setBlock(null)} />
+      <SessionModal id={lesson} onClose={() => setLesson(null)} />
     </div>
   );
 }

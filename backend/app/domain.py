@@ -147,7 +147,7 @@ class Pricer:
 # ── Disponibilidade ─────────────────────────────────────────────────────────
 
 async def busy_ranges(conn: asyncpg.Connection, start: datetime, end: datetime):
-    """Reservas ativas (holds expirados não contam) e bloqueios num intervalo."""
+    """Reservas ativas (holds expirados não contam) e bloqueios num intervalo. Aulas contam como bloqueio."""
     res = await conn.fetch(
         """
         SELECT court_id, lower(period) AS s, upper(period) AS e, user_id
@@ -159,7 +159,10 @@ async def busy_ranges(conn: asyncpg.Connection, start: datetime, end: datetime):
         start, end,
     )
     blocks = await conn.fetch(
-        "SELECT court_id, lower(period) AS s, upper(period) AS e, reason FROM blocks WHERE period && tstzrange($1, $2)",
+        """SELECT court_id, lower(period) AS s, upper(period) AS e, reason FROM blocks WHERE period && tstzrange($1, $2)
+           UNION ALL
+           SELECT court_id, lower(period), upper(period), 'Aula' FROM class_sessions
+           WHERE period && tstzrange($1, $2) AND status <> 'cancelled'""",
         start, end,
     )
     return res, blocks

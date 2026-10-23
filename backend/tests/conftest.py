@@ -8,7 +8,7 @@ os.environ.setdefault("PADEL_DATABASE_URL", "postgresql://padel:padel@localhost:
 
 from app import db  # noqa: E402
 
-TABLES = "daily_closings, reservation_events, notifications, payments, reservation_players, blocks, reservations, holidays, price_rules, business_hours, settings, courts, users"
+TABLES = "attendance, student_charges, enrollments, class_sessions, class_groups, coaches, daily_closings, reservation_events, notifications, payments, reservation_players, blocks, reservations, holidays, price_rules, business_hours, settings, courts, users"
 
 
 @pytest_asyncio.fixture

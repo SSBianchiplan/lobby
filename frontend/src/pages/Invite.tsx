@@ -28,7 +28,7 @@ export default function Invite() {
   const full = i && i.players.length >= i.max_players;
 
   return (
-    <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <main style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div className="card" style={{ width: "100%", maxWidth: 420, overflow: "hidden", boxShadow: "var(--shadow-float)" }}>
         <div style={{ padding: "18px 20px", display: "flex", justifyContent: "center" }}><Link to="/"><Logo height={48} /></Link></div>
         {!i ? (q.isError ? <p className="empty">Convite inválido ou expirado.</p> : <Spinner />) : (

@@ -4,13 +4,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import jsQR from "jsqr";
 import { api, ApiError, type Reservation } from "../../api";
 import { Logo } from "../../components/Layout";
-import { isoDay, parseCheckinCode, STATUS_LABEL } from "../../format";
+import { coachLabel, firstName, isoDay, money, parseCheckinCode, parseCoachToken, parseStudentToken, STATUS_LABEL } from "../../format";
 
 // BarcodeDetector (Chrome/Android) ainda não está nos tipos do TypeScript.
 type Detector = { detect: (src: CanvasImageSource) => Promise<{ rawValue: string }[]> };
 declare global { interface Window { BarcodeDetector?: { new (o: { formats: string[] }): Detector; getSupportedFormats?: () => Promise<string[]> } } }
 
-type Result = { kind: "ok" | "warn" | "error"; title: string; detail: string; r?: Reservation };
+type Result = { kind: "ok" | "warn" | "error"; title: string; detail: string; r?: Reservation; sub?: string };
 const REPEAT_MS = 6000;   // o mesmo QR parado na frente da câmera não repete o check-in
 const SHOW_MS = 5000;     // tempo do cartão de resultado na tela
 
@@ -45,8 +45,54 @@ export default function CheckinKiosk() {
   });
 
   const checkin = useCallback(async (raw: string) => {
+    // QR do professor → registra a chegada e inicia a aula dele
+    const coachToken = parseCoachToken(raw);
+    if (coachToken) {
+      const now = Date.now();
+      if (busy.current || (last.current.code === coachToken && now - last.current.at < REPEAT_MS)) return;
+      busy.current = true; last.current = { code: coachToken, at: now };
+      try {
+        const r = await api<{ coach: { name: string }; session: { name: string; court_name: string; starts_at: string; ends_at: string; present: number; expected: number }; already: boolean }>(
+          "/api/admin/classes/coach-checkin", { method: "POST", json: { token: coachToken } });
+        const t = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        setResult({
+          kind: r.already ? "warn" : "ok", title: r.already ? "Aula já iniciada" : `Aula iniciada · ${coachLabel(firstName(r.coach.name))}`,
+          detail: `${r.session.name} · ${r.session.court_name} · ${t(r.session.starts_at)}–${t(r.session.ends_at)}`,
+          sub: `${r.session.present} de ${r.session.expected} aluno(s) já chegaram`,
+        });
+        beep(!r.already);
+        qc.invalidateQueries({ queryKey: ["admin"] });
+      } catch (e) {
+        setResult({ kind: e instanceof ApiError && e.status === 404 ? "error" : "warn", title: "Professor", detail: e instanceof ApiError ? e.message : "Falha de conexão." });
+        beep(false);
+      } finally { busy.current = false; }
+      return;
+    }
+    // QR pessoal do aluno → presença na aula de agora
+    const token = parseStudentToken(raw);
+    if (token) {
+      const now = Date.now();
+      if (busy.current || (last.current.code === token && now - last.current.at < REPEAT_MS)) return;
+      busy.current = true; last.current = { code: token, at: now };
+      try {
+        const r = await api<{ user: { name: string }; session: { name: string; court_name: string; coach_name: string; starts_at: string; ends_at: string }; already: boolean; open_cents: number }>(
+          "/api/admin/classes/checkin", { method: "POST", json: { token } });
+        const t = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        setResult({
+          kind: r.already ? "warn" : "ok", title: r.already ? `${r.user.name.split(" ")[0]} já está na aula` : `Boa aula, ${r.user.name.split(" ")[0]}!`,
+          detail: `${r.session.name} · ${r.session.court_name} · ${t(r.session.starts_at)}–${t(r.session.ends_at)} · ${coachLabel(r.session.coach_name)}`,
+          sub: r.open_cents > 0 ? `Mensalidade em aberto: ${money(r.open_cents)}` : undefined,
+        });
+        beep(!r.already);
+        qc.invalidateQueries({ queryKey: ["admin"] });
+      } catch (e) {
+        setResult({ kind: e instanceof ApiError && e.status === 404 ? "error" : "warn", title: "Aula", detail: e instanceof ApiError ? e.message : "Falha de conexão." });
+        beep(false);
+      } finally { busy.current = false; }
+      return;
+    }
     const code = parseCheckinCode(raw);
-    if (!code) { setResult({ kind: "error", title: "QR não reconhecido", detail: "Esse QR não é de uma reserva do Padel Lobby." }); beep(false); return; }
+    if (!code) { setResult({ kind: "error", title: "QR não reconhecido", detail: "Esse QR não é de uma reserva, aluno ou professor do Padel Lobby." }); beep(false); return; }
     const now = Date.now();
     if (busy.current || (last.current.code === code && now - last.current.at < REPEAT_MS)) return;
     busy.current = true; last.current = { code, at: now };
@@ -156,10 +202,11 @@ export default function CheckinKiosk() {
               <p className="kiosk-result-icon" aria-hidden="true">{result.kind === "ok" ? "✓" : result.kind === "warn" ? "!" : "✕"}</p>
               <p className="kiosk-result-title">{result.title}</p>
               <p className="kiosk-result-detail">{result.detail}</p>
+              {result.sub && <p className="kiosk-result-sub">{result.sub}</p>}
               {result.r && <p className="kiosk-result-sub">{result.r.code} · {result.r.players.map((p) => p.name).join(", ")}{result.r.payment_status === "onsite" ? " · pagamento a receber" : ""}</p>}
             </div>
           )}
-          {!result && !camError && <p className="kiosk-hint">Aponte o QR code da reserva para a câmera{engine && <small> · {engine}</small>}</p>}
+          {!result && !camError && <p className="kiosk-hint">Aponte o QR da reserva, do aluno ou do professor{engine && <small> · {engine}</small>}</p>}
         </section>
 
         <aside className="kiosk-side">

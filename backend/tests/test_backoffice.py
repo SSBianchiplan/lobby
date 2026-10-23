@@ -138,3 +138,21 @@ async def test_court_photos_and_gallery(client):
     assert (await client.get("/api/club")).json()["courts"][0]["photo"] == "/quadras/quadra-rede-1600.webp"
     ana = await make_user(client)
     assert (await client.put(f"/api/admin/courts/{c1}/photo", json={"photo": None}, headers=ana)).status_code == 403
+
+
+async def test_invite_link_preview_for_whatsapp(client):
+    from app.main import DIST
+    if not DIST.exists():
+        return
+    ana = await make_user(client)
+    from .test_reservations import body, next_weekday
+    r = (await client.post("/api/reservations", json=body(next_weekday(3), "19:00", court=2, method="card", players=["Bia"]), headers=ana)).json()
+    page = (await client.get(f"/convite/{r['invite_token']}")).text
+    assert 'property="og:title" content="🎾 Bora jogar? Quadra 2 · Qua' in page and "19:00–20:00" in page
+    assert "Faltam 2 vagas" in page and "R$ 35,00 por jogador" in page
+    assert 'og:image" content="http://t/quadras/quadra-fundo-og.jpg"' in page
+    assert "<title>🎾 Bora jogar? Quadra 2" in page
+    generic = (await client.get("/convite/00000000-0000-0000-0000-000000000000")).text
+    assert 'og:title" content="Padel Lobby — Reservas"' in generic
+    await client.post(f"/api/reservations/{r['code']}/cancel", json={}, headers=ana)
+    assert "Bora jogar" not in (await client.get(f"/convite/{r['invite_token']}")).text

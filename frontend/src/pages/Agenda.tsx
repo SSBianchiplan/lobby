@@ -204,7 +204,7 @@ function AgendaMobile() {
       </div>
 
       <div className="legend" style={{ padding: "14px 20px 0" }}>
-        <span><i style={{ background: "#fff", border: "1px solid var(--border-strong)" }} />Livre</span>
+        <span><i style={{ background: "var(--surface)", border: "1px solid var(--border-strong)" }} />Livre</span>
         <span><i style={{ background: "var(--red)" }} />Selecionado</span>
         <span><i style={{ background: "var(--border)" }} />Ocupado</span>
       </div>

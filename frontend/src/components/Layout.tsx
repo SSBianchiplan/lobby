@@ -6,6 +6,7 @@ import { useAuth } from "../auth";
 import { useClub } from "../hooks";
 import { initials } from "../format";
 import { Bell, CalendarIcon, CheckIcon, HomeIcon, UserIcon } from "./Icons";
+import { ThemeButton } from "./Theme";
 
 export function Logo({ height = 52, alt = "Padel Lobby — Rio Grande, RS" }: { height?: number; alt?: string }) {
   return <img src="/logo.png" alt={alt} className="logo" style={{ height, width: "auto", display: "block" }} />;
@@ -71,6 +72,7 @@ export function SiteHeader({ cta }: { cta?: ReactNode }) {
             </>
           )}
         </nav>
+        <ThemeButton />
         <NotificationBell />
         {user ? (
           <Link to="/perfil" className="user-chip">
@@ -116,7 +118,7 @@ export function SiteFooter() {
   return (
     <footer className="site-footer web-only hide-mobile" id="contato">
       <div className="container">
-        <p style={{ fontWeight: 900, fontStyle: "italic", fontSize: 18 }}>PADEL <span style={{ color: "var(--ball)" }}>LOBBY</span></p>
+        <Link to="/" aria-label="Padel Lobby — início" className="footer-logo"><Logo height={44} /></Link>
         {club && <a href={`mailto:${club.email}`}>{club.email}</a>}
         {wa ? <a href={wa}>WhatsApp</a> : <span style={{ fontWeight: 600 }}>WhatsApp [TELEFONE]</span>}
         <Link to="/termos">Termos e privacidade</Link>

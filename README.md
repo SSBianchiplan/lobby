@@ -87,6 +87,26 @@ transação as contas do seed (`jogador@padellobby.com.br` e `*@exemplo.com`, pa
 reservas, pagamentos, jogadores, eventos, notificações — e os fechamentos de dias com dinheiro de exemplo. Admins,
 configurações, preços, feriados, quadras, bloqueios e dados reais ficam.
 
+### Aulas e alunos (`/admin/aulas`)
+
+- **Professores** (com QR de check-in), **turmas** recorrentes (dias, horário, quadra, nível, vagas, mensalidade e aula
+  avulsa) com calendário gerado 4 semanas à frente e renovado todo dia, **aulas particulares**, **matrículas**,
+  **chamada** (presente a partir de 1 h antes; falta/justificada a qualquer momento; aluno avulso gera a cobrança da aula
+  avulsa) e **mensalidades** por mês (sem duplicar; recebimento entra no mesmo caixa e respeita o fechamento).
+- Invariantes no banco (migração 005): aula × reserva × bloqueio nunca se sobrepõem na mesma quadra, nos dois
+  sentidos (trava por quadra), e turma não passa da capacidade. Para o jogador, horário de aula aparece indisponível.
+- **Check-in por QR no leitor da recepção** (`/recepcao`): QR da reserva (quadra), QR pessoal do aluno (presença na
+  aula de agora) e QR do professor (registra a chegada e **inicia a aula**). Cada QR pode ser baixado ou compartilhado
+  como cartão de check-in (imagem); o aluno vê turmas, próximas aulas, frequência, mensalidades e o QR no perfil.
+
+### Tema escuro, telas e compartilhamento
+
+- **Tema escuro** (paleta do VS Code Dark) por tokens CSS: automático pelo sistema ou escolhido no cabeçalho/perfil.
+- **Áreas seguras** do iPhone/Android (app instalado): o conteúdo começa abaixo da barra de status; campos com 16 px
+  no celular (sem zoom do iOS); alturas em `dvh`. Auditoria de 25 telas em 360–1440 px sem rolagem lateral.
+- **Convite pelo WhatsApp** com mensagem formatada e prévia do link (Open Graph) gerada pelo servidor com a quadra,
+  o horário, as vagas e a foto (`app/preview.py`).
+
 ### Conta do usuário
 
 - **Criar conta** (`/cadastro`): senha de 8+ caracteres com medidor de força e confirmação, perfil de jogador opcional

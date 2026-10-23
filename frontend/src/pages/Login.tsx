@@ -42,7 +42,7 @@ export function PasswordInput({ label, value, onChange, autoComplete, minLength 
 
 function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (
-    <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <main style={{ minHeight: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div className="card" style={{ width: "100%", maxWidth: 460, overflow: "hidden", boxShadow: "var(--shadow-float)" }}>
         <div className="hero-m" style={{ borderRadius: 0, padding: "22px 22px 26px" }}>
           <Ball size={120} stroke={1.6} style={{ position: "absolute", right: -26, top: -22 }} />
